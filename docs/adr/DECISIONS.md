@@ -26,7 +26,7 @@
   Tests: 6 new — defaults, set override, clear override, unknown tier 400, anonymous 401, monthly cost aggregation.
 - **Rationale**: Per-tier override at runtime (no env var change) is what D8 demands — teachers can shift evaluation_quality to Pro for one student without restarting the container. The "type the model ID" field is intentionally unconstrained: framework-gotcha.md "OpenRouter Model Names Don't Always Match Documentation" — better to let the teacher copy-paste from OpenRouter dashboard than maintain a hardcoded allowed-list that goes stale. Budget cap stays process-wide for V1; per-teacher budget needs a DB column + accounting service that's V2 scope.
 - **Files**: `backend/app/services/settings_service.py`, `backend/app/schemas/settings.py`, `backend/app/routers/settings.py`, `backend/app/main.py` (wired router), `backend/tests/integration/test_settings.py`, `frontend/src/lib/api.ts` (settings calls), `frontend/src/app/settings/page.tsx`
-- **Commit**: _fill after commit_
+- **Commit**: `27bd470`
 
 ### D-2026-05-10-19 Implementation Phase 11 — PII Min UI (D13)
 - **Decision**: Surface PII mapping management to the teacher per D13:
@@ -37,7 +37,7 @@
   Tests: 7 new — list returns seeded rows with decrypted originals, display-name set/clear, unknown pseudonym 404, manual-mapping happy path, manual mapping on unknown pseudonym 400, anonymous 401.
 - **Rationale**: V1 UI skips regex editor (D13 explicitly defers to V2) — teachers can fix specific values via aliases. Discovery of the schema bug ("uq_pii_pseudonym blocks aliases") happened during Phase 11 implementation, was fixed via migration 0003 in same commit; this is the kind of mid-phase schema evolution `engineering-process.md` "OAQ Defer Don't Reverse" applies to (raise + fix in next layer rather than retroactively edit Phase 1's initial migration).
 - **Files**: `backend/alembic/versions/20260510_0003_drop_pii_pseudonym_unique.py`, `backend/app/models/pii_mapping.py` (drop UQ), `backend/app/services/pii_anonymizer.py` (3 new methods), `backend/app/schemas/pii.py`, `backend/app/routers/pii.py`, `backend/app/main.py` (wired router), `backend/tests/integration/test_pii_min_ui.py`, `frontend/src/lib/api.ts` (PII calls), `frontend/src/app/pii/page.tsx`, `frontend/src/app/page.tsx` (added cards for /pii + /settings)
-- **Commit**: _fill after commit_
+- **Commit**: `27bd470`
 
 ### D-2026-05-10-18 Implementation Phase 10 — audio STT tier
 - **Decision**: Add audio transcription via the `audio_standard` tier (D10 / D11):
