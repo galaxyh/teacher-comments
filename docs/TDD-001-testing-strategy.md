@@ -771,80 +771,57 @@ PII tests parametrize over this — `pytest.mark.parametrize` from manifest.
 
 ## 8. CI Integration
 
-### 8.1 GitHub Actions workflow
+### 8.1 GitHub Actions workflows
 
-```yaml
-# .github/workflows/test.yml
-name: Test
+> **Status note**: This section was authored as an early sketch (v0.1 had only 4 jobs). The actual implementation (commit `efb7c98`, 2026-05-10) is more comprehensive — full implementation lives in [`.github/workflows/`](../.github/workflows/) and is the canonical source. Below describes what's there.
 
-on:
-  pull_request:
-  push:
-    branches: [main]
+Three workflows split by purpose:
 
-jobs:
-  backend-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - run: uv sync --frozen
-      - run: uv run pytest backend/tests/unit -v --cov=app --cov-report=xml
-      - uses: codecov/codecov-action@v4
+#### 8.1.1 `test.yml` — code testing (7 jobs)
 
-  backend-integration:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - run: uv sync --frozen
-      - run: uv run pytest backend/tests/integration -v --maxfail=3
+Triggers: PR + push to main. Each job has `if: hashFiles(...)` guard so jobs auto-skip when target directory is absent (activates as `backend/` and `frontend/` are created during V1 implementation).
 
-  frontend-unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
-      - run: pnpm install
-      - run: pnpm test --coverage
+| Job | Triggers when | Runs |
+|-----|---------------|------|
+| `backend-unit` | `backend/pyproject.toml` exists | `pytest tests/unit` with coverage; uploads to Codecov |
+| `backend-integration` | same | `pytest tests/integration --maxfail=3`; depends on `backend-unit` |
+| `backend-quality` | same | `ruff check`, `mypy --strict`, **DESIGN-001 §5.3 hardcoded-model-ID grep check** |
+| `frontend-unit` | `frontend/package.json` exists | `pnpm test --run --coverage` |
+| `frontend-quality` | same | `tsc --noEmit`, `eslint`, **TDD-001 §5.4 provider-specific-state-name grep check** |
+| `e2e` | both backend + frontend present | Playwright on chromium + firefox + iPhone 13; depends on `backend-unit` + `frontend-unit`; uploads report + trace on failure |
+| `ci-summary` | always | Aggregates all jobs; the single check to mark "required" in branch protection |
 
-  e2e:
-    runs-on: ubuntu-latest
-    needs: [backend-unit, frontend-unit]  # gate behind faster tests
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
-      - uses: pnpm/action-setup@v3
-      - run: uv sync && pnpm install
-      - run: pnpm exec playwright install chromium firefox --with-deps
-      - run: ./scripts/start-test-stack.sh &
-      - run: pnpm exec playwright test
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-```
+Concurrency: in-progress runs are cancelled when a new push lands on the same branch (saves CI minutes).
 
-### 8.2 Pre-commit hook (optional)
+#### 8.1.2 `doc-consistency.yml` — cross-doc consistency
 
-```yaml
-# .pre-commit-config.yaml
-repos:
-  - repo: local
-    hooks:
-      - id: pytest-fast
-        name: pytest unit (fast)
-        entry: uv run pytest backend/tests/unit -x -q
-        language: system
-        pass_filenames: false
-      - id: vitest-fast
-        name: vitest unit (fast)
-        entry: pnpm test --run --bail
-        language: system
-        pass_filenames: false
-```
+Triggers: PR + push touching `.md` files. Runs [`scripts/check_docs.py`](../scripts/check_docs.py) which performs 6 checks (C1-C6 — see comment block in the script). Catches the "ripple-effect drift" class of bugs (e.g., F-N count vs AC-N count, D-NN refs not defined, state machine drift).
+
+#### 8.1.3 `link-check.yml` — markdown link integrity
+
+Triggers: PR (offline mode, fast) + weekly cron (full check including external URLs). Tool: lychee. Already in place since the governance kit was installed (commit `2e0d2b6`).
+
+#### 8.1.4 Quality gates summary (per §8.3 detail below)
+
+The custom grep checks in `backend-quality` and `frontend-quality` enforce two architectural invariants that no off-the-shelf linter can detect:
+
+- **No hardcoded model IDs** in `backend/app/services/*` or `backend/app/adapters/openrouter_client.py` — must read `settings.llm_tier_*` per DESIGN-001 §5.3 (config plumbing pattern from `lessons-learned/architecture.md`)
+- **No provider-specific state names** in `frontend/src/**/*.{ts,tsx}` — must use `llmQuotaPaused` not `geminiQuotaPaused` per `lessons-learned/frontend.md`
+
+### 8.2 Pre-commit hooks
+
+> **Status note**: This section was authored as a sketch (2 hooks); the actual [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) (commit `efb7c98`) has 14 hooks. Below describes the implemented shape.
+
+Install once: `pre-commit install`. The hooks mirror CI checks for fast local feedback.
+
+| Category | Hooks | Auto-skip behavior |
+|----------|-------|---------------------|
+| **Generic hygiene** | trailing-whitespace, end-of-file-fixer, check-yaml, check-toml, check-json, check-merge-conflict, check-added-large-files (1MB cap) | Always run |
+| **Doc consistency** | `check-docs` (runs `scripts/check_docs.py`) | Always run on `.md` change |
+| **Backend** | `backend-ruff`, `backend-mypy`, `backend-pytest-fast` | Skip if `backend/pyproject.toml` absent |
+| **Frontend** | `frontend-tsc`, `frontend-eslint`, `frontend-vitest-fast` | Skip if `frontend/package.json` absent |
+
+The skip-if-absent guards mirror the workflow guards (§8.1.1) — same activation pattern across CI and local pre-commit.
 
 ### 8.3 Quality gates (enforce)
 

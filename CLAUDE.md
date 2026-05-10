@@ -5,12 +5,23 @@
 
 ## Project status
 
-**PRD v0.1**: `docs/PRD.md` (2026-05-10 draft, awaiting first review).
-**Stack**: Python (FastAPI) backend + Next.js / React frontend (D2 in PRD §2).
-**Compliance baseline**: PII anonymization before any LLM call (D3 / A2).
+**PRD v0.2**: `docs/PRD.md` (engineering design freeze; all 13 Open Questions resolved).
+**Stack**: Python/FastAPI backend + Next.js / React frontend (D2). SQLite + WAL (D16). Docker + multi-target deploy (D15).
+**Compliance baseline**: PII anonymization before any LLM call (D3 / A2). Onboarding consent attestation (D17).
 
 **Locked Decisions** (changes require ADR + DECISIONS.md reversal entry):
-see `docs/PRD.md` §2 — table of D1–D7 with rationale.
+see `docs/PRD.md` §2.1 (D1-D7 foundation) and §2.2 (D8-D17 refinements);
+full architectural rationale with options-evaluated-and-rejected in
+`docs/adr/ADR-001-system-foundation.md`.
+
+**Engineering design docs** (5/5 freeze, see [`README.md`](README.md) for full list):
+- `docs/ARCH-001-architecture.md` — modules, data flow, deployment
+- `docs/DESIGN-001-detailed-design.md` — service contracts, error matrix, config plumbing
+- `docs/UIUX-001-design-system.md` — design tokens, components, screen specs
+- `docs/BDD-001-behavior-scenarios.md` — 58 Gherkin scenarios for F-1~F-10
+- `docs/TDD-001-testing-strategy.md` — test pyramid, mocks, Playwright E2E, CI
+
+**Implementation phase**: not yet started. Next milestone is walking skeleton (OAuth + 1 file processing + 1 evaluation flow end-to-end).
 
 ## 決策治理（Decision Governance）
 
