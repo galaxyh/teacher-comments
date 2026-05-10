@@ -5,11 +5,12 @@
 
 ## Project status
 
-Newly initialized. Tech stack: **undecided / docs-only** for now.
+**PRD v0.1**: `docs/PRD.md` (2026-05-10 draft, awaiting first review).
+**Stack**: Python (FastAPI) backend + Next.js / React frontend (D2 in PRD §2).
+**Compliance baseline**: PII anonymization before any LLM call (D3 / A2).
 
-When the tech stack is chosen, update the lessons-learned trigger rules table
-below to add the corresponding rows (see `~/.claude/lessons-learned/README.md`
-for the full catalogue of available rules).
+**Locked Decisions** (changes require ADR + DECISIONS.md reversal entry):
+see `docs/PRD.md` §2 — table of D1–D7 with rationale.
 
 ## 決策治理（Decision Governance）
 
@@ -57,9 +58,17 @@ for the full catalogue of available rules).
 
 | 觸發條件 | 必讀檔案 | 摘要 |
 |----------|---------|------|
+| 實作 API 錯誤處理、retry、rate limit（OpenRouter / Drive API） | `~/.claude/lessons-learned/api-design.md` | 重試策略、429 backoff、quota 管理 |
+| 實作 asyncio 並行、Lock、Semaphore、batch worker 設計 | `~/.claude/lessons-learned/concurrency.md` | 任務佇列、worker pool、資料競爭 |
+| 整合新 SDK（Google APIs、OpenRouter、Whisper、authlib） | `~/.claude/lessons-learned/framework-gotcha.md` | SDK lazy import、版本鎖定、auth flow 細節 |
+| 寫測試、mock LLM 呼叫、patch Drive client | `~/.claude/lessons-learned/testing.md` | LLM 測試 fixture、manifest-driven E2E、mock Drive |
+| 設計批次 pipeline、daemon、狀態機（F-7 處理流程） | `~/.claude/lessons-learned/architecture.md` | 顯式狀態機、idempotent jobs、中斷恢復模式 |
+| Postgres / SQLite 操作、schema 變更、migration | `~/.claude/lessons-learned/database.md` | migration 順序、schema 變更安全模式、index 設計 |
+| 前端 SSE、進度顯示、async init、編輯器整合 | `~/.claude/lessons-learned/frontend.md` | Next.js / React 常見 gotcha |
+| 效能調校、輪詢間隔、批次並行度 | `~/.claude/lessons-learned/performance.md` | 並行度測試方法、cost / perf trade-off |
+| OAuth、PII、加密 token 存儲、scope 設計 | `~/.claude/lessons-learned/security.md` | OAuth flow 安全、PII handling、加密金鑰管理 |
+| OCR、文件處理品質檢核、LLM 輸出驗證 | `~/.claude/lessons-learned/debugging.md` | OCR 失敗模式、LLM hallucination 偵測 |
 | Markdown link checker、文件交叉引用、tracked symlinks 破壞 CI | `~/.claude/lessons-learned/documentation.md` | lychee 配置、`.lycheeignore`、symlink 在 CI runner 上的失效模式 |
 | 設計決策、reversal、跨 session 協作、agent 編排、新專案 init | `~/.claude/lessons-learned/engineering-process.md` | 三層決策治理（ADR/DECISIONS.md/commit）+ Pre-Action Verification + Reversal Protocol |
-
-> **TODO**：選定 tech stack 後，根據 `~/.claude/CLAUDE.md` 的觸發規則表，補上對應的 stack-specific 規則（例如 Python 專案應加上 `api-design.md`、`concurrency.md`、`testing.md`、`database.md` 等列）。
 
 索引見 `~/.claude/lessons-learned/README.md`。
