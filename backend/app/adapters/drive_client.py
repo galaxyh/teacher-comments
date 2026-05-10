@@ -136,6 +136,30 @@ class DriveClient:
 
         return await asyncio.to_thread(_sync)
 
+    async def download_file(self, *, drive_file_id: str) -> bytes:
+        """Download file content as bytes.
+
+        Streams to an in-memory buffer via MediaIoBaseDownload. Suitable for V1
+        scale (single .docx ~MB). Audio (>100MB) gets a separate streaming
+        method in Phase 5+.
+        """
+        from googleapiclient.http import MediaIoBaseDownload  # local: heavy import
+        import io as _io
+
+        def _sync() -> bytes:
+            try:
+                request = self._service.files().get_media(fileId=drive_file_id)
+                buf = _io.BytesIO()
+                downloader = MediaIoBaseDownload(buf, request)
+                done = False
+                while not done:
+                    _, done = downloader.next_chunk()
+                return buf.getvalue()
+            except HttpError as exc:
+                raise _classify_http_error(exc) from exc
+
+        return await asyncio.to_thread(_sync)
+
     async def list_root_folders(self, *, page_size: int = 100) -> list[DriveItem]:
         """List top-level folders in My Drive — for the onboarding 'pick root' UI."""
 
