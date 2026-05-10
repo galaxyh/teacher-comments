@@ -17,6 +17,17 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-15 Implementation Phase 7 — batch dashboard UI + SSE wiring
+- **Decision**: Add `/batch` dashboard route to frontend with live progress via EventSource:
+  (a) `src/lib/api.ts` extended with `BatchStatusResponse` / `BatchEvent` types and `startBatch` / `cancelBatch` / `getBatchStatus` / `openBatchEventStream` calls.
+  (b) `src/app/batch/page.tsx` — 3-state UI (idle / starting / running / finished). Start triggers `/batch/start` (202), then `openBatchEventStream` opens an EventSource to `/batch/{id}/events`. Each `data: {...}` event updates the snapshot + progress bar. `onerror` handler does one polling fetch as graceful degradation when the stream terminates.
+  (c) Cleanup discipline: `useRef<EventSource>` + `useEffect` cleanup `close()`s any open stream on unmount. React 19 strict mode dev double-invokes effects; the close+reopen is benign.
+  (d) Home page updated with two-card grid (批次處理 + 評語產生).
+  Verification: `pnpm build` ✓ (4 static routes), `pnpm typecheck` ✓.
+- **Rationale**: EventSource is the right primitive (browser native, auto-reconnect, CORS-friendly via `withCredentials`); WebSocket would be overkill for unidirectional progress. The polling fallback in `onerror` covers two cases at once: stream prematurely closed, or browser restored from bfcache without a fresh stream. UI surfaces last-event drive_file_id + reason so failures (e.g. `unprocessable`) are visible without drilling into a separate log view.
+- **Files**: `frontend/src/lib/api.ts`, `frontend/src/app/batch/page.tsx`, `frontend/src/app/page.tsx`
+- **Commit**: `8721866`
+
 ### D-2026-05-10-14 Implementation Phase 5b — extractors for xlsx / pptx / pdf
 - **Decision**: Add 3 V1 document extractors per DESIGN-001 §8.2:
   (a) `XlsxExtractor` (openpyxl, `read_only=True data_only=True`) — sheet-per-section, GFM pipe tables, 1000-row cap per sheet with warning surface, blank-sheet warning, legacy `.xls` (OLE) → `UnsupportedFormatError`.
