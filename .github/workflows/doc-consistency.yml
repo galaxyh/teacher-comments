@@ -1,0 +1,44 @@
+name: Doc Consistency
+
+# Runs on PRs that touch markdown docs to catch the "ripple-effect drift"
+# class of bugs (e.g., F-N count vs AC-N count, D-NN refs not defined,
+# state machine drift across docs).
+#
+# The actual checks live in scripts/check_docs.py — run it locally with:
+#   python3 scripts/check_docs.py
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**/*.md'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'scripts/check_docs.py'
+      - '.github/workflows/doc-consistency.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**/*.md'
+      - 'README.md'
+      - 'CLAUDE.md'
+      - 'scripts/check_docs.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-docs:
+    name: Cross-doc consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run doc consistency checks
+        run: python3 scripts/check_docs.py

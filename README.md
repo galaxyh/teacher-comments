@@ -37,7 +37,18 @@ This project uses the lightweight governance kit:
 - [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md) — chronological decision log
 - [`docs/adr/ADR-001-system-foundation.md`](docs/adr/ADR-001-system-foundation.md) — architectural rationale (7 axes, options evaluated)
 - [`CLAUDE.md`](CLAUDE.md) — Pre-Action Verification, Reversal Protocol, lessons-learned trigger rules for Claude Code sessions
-- [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml) — markdown link CI (PR offline check + weekly full check)
+
+## Continuous Integration
+
+| Workflow | Triggers | What it checks |
+|----------|----------|----------------|
+| [`link-check.yml`](.github/workflows/link-check.yml) | PR + weekly cron | Markdown link integrity (lychee, anchor-aware) |
+| [`doc-consistency.yml`](.github/workflows/doc-consistency.yml) | PR on `.md` change | F-N↔AC-N parity, D-NN cross-refs, state machine consistency, Mermaid syntax (via [`scripts/check_docs.py`](scripts/check_docs.py)) |
+| [`test.yml`](.github/workflows/test.yml) | PR + push to main | Backend pytest unit/integration + ruff + mypy + no-hardcoded-models check (DESIGN-001 §5.3); Frontend vitest + tsc + eslint + no-provider-specific-state check (TDD-001 §5.4); Playwright E2E gated behind unit tests. Auto-skips jobs whose target directory does not yet exist. |
+
+[`.github/dependabot.yml`](.github/dependabot.yml) keeps GitHub Actions, Python, and npm dependencies current (weekly).
+
+[`.pre-commit-config.yaml`](.pre-commit-config.yaml) provides matching local hooks. Install once with `pre-commit install`.
 
 ## Local link check
 

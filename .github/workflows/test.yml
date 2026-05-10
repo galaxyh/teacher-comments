@@ -1,0 +1,257 @@
+name: Test
+
+# Per TDD-001 §8.1. Jobs auto-skip when their target directory does not yet
+# exist (hashFiles guard); they activate as backend/ and frontend/ are created
+# during V1 implementation.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel in-progress runs for the same PR/branch on new push (saves CI minutes)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ────────────────────────────────────────────────────────────────
+  # Backend: pytest unit
+  # ────────────────────────────────────────────────────────────────
+  backend-unit:
+    name: Backend unit tests
+    if: hashFiles('backend/pyproject.toml') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Sync dependencies
+        run: uv sync --frozen
+        working-directory: ./backend
+      - name: Run unit tests with coverage
+        run: uv run pytest tests/unit -v --cov=app --cov-report=xml --cov-report=term
+        working-directory: ./backend
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./backend/coverage.xml
+          flags: backend-unit
+          fail_ci_if_error: false
+
+  # ────────────────────────────────────────────────────────────────
+  # Backend: pytest integration
+  # ────────────────────────────────────────────────────────────────
+  backend-integration:
+    name: Backend integration tests
+    if: hashFiles('backend/pyproject.toml') != ''
+    runs-on: ubuntu-latest
+    needs: backend-unit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --frozen
+        working-directory: ./backend
+      - run: uv run pytest tests/integration -v --maxfail=3
+        working-directory: ./backend
+
+  # ────────────────────────────────────────────────────────────────
+  # Backend: code quality (mypy + ruff + custom DESIGN-001 §5.3 check)
+  # ────────────────────────────────────────────────────────────────
+  backend-quality:
+    name: Backend code quality
+    if: hashFiles('backend/pyproject.toml') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --frozen
+        working-directory: ./backend
+      - name: ruff lint
+        run: uv run ruff check .
+        working-directory: ./backend
+      - name: mypy strict type check
+        run: uv run mypy --strict app
+        working-directory: ./backend
+      - name: No hardcoded LLM model IDs (DESIGN-001 §5.3)
+        run: |
+          set -eu
+          # Services must read tier→model from settings, not hardcode provider strings
+          forbidden_patterns=(
+            "google/gemini"
+            "anthropic/claude"
+            "openai/gpt"
+            "meta-llama/"
+          )
+          violations=0
+          for pattern in "${forbidden_patterns[@]}"; do
+            if grep -rn --include="*.py" "$pattern" backend/app/services backend/app/adapters/openrouter_client.py 2>/dev/null \
+                 | grep -v "^backend/app/config.py" \
+                 | grep -v "^backend/app/adapters/openrouter_client.py:.*# allowed"; then
+              echo "ERROR: hardcoded model ID '$pattern' found above"
+              violations=$((violations + 1))
+            fi
+          done
+          if [ $violations -gt 0 ]; then
+            echo ""
+            echo "Hardcoded model IDs are forbidden in services per DESIGN-001 §5.3."
+            echo "Use settings.llm_tier_* (defined in app/config.py) instead."
+            exit 1
+          fi
+        working-directory: .
+
+  # ────────────────────────────────────────────────────────────────
+  # Frontend: vitest unit
+  # ────────────────────────────────────────────────────────────────
+  frontend-unit:
+    name: Frontend unit tests
+    if: hashFiles('frontend/package.json') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm', cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+      - run: pnpm test --run --coverage
+        working-directory: ./frontend
+
+  # ────────────────────────────────────────────────────────────────
+  # Frontend: code quality (tsc + eslint + custom TDD-001 §5.4 check)
+  # ────────────────────────────────────────────────────────────────
+  frontend-quality:
+    name: Frontend code quality
+    if: hashFiles('frontend/package.json') != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm', cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+      - name: TypeScript strict type check
+        run: pnpm exec tsc --noEmit
+        working-directory: ./frontend
+      - name: ESLint
+        run: pnpm exec eslint src
+        working-directory: ./frontend
+      - name: No provider-specific state names (TDD-001 §5.4 / lessons-learned/frontend.md)
+        run: |
+          set -eu
+          # State variable names must be provider-agnostic (e.g., llmQuotaPaused,
+          # NOT geminiQuotaPaused). See lessons-learned/frontend.md
+          # "Use Provider-Agnostic Naming for Multi-Backend State"
+          forbidden_patterns=(
+            "gemini[A-Z]\w*State"
+            "openrouter[A-Z]\w*State"
+            "openai[A-Z]\w*State"
+            "anthropic[A-Z]\w*State"
+            "geminiQuotaPaused"
+            "openrouterQuotaPaused"
+          )
+          violations=0
+          for pattern in "${forbidden_patterns[@]}"; do
+            if grep -rEn --include="*.ts" --include="*.tsx" "$pattern" frontend/src 2>/dev/null; then
+              echo "ERROR: provider-specific state name '$pattern' found above"
+              violations=$((violations + 1))
+            fi
+          done
+          if [ $violations -gt 0 ]; then
+            echo ""
+            echo "Use provider-agnostic state names (llmQuotaPaused, llmCallCount, etc.)"
+            echo "per lessons-learned/frontend.md. Avoid baking the current LLM"
+            echo "provider into UI state — when V2 adds a fallback provider, naming"
+            echo "becomes misleading and creates technical debt."
+            exit 1
+          fi
+        working-directory: .
+
+  # ────────────────────────────────────────────────────────────────
+  # E2E: Playwright (gated behind unit + quality)
+  # ────────────────────────────────────────────────────────────────
+  e2e:
+    name: E2E (Playwright)
+    if: hashFiles('frontend/package.json') != '' && hashFiles('backend/pyproject.toml') != ''
+    runs-on: ubuntu-latest
+    needs: [backend-unit, frontend-unit]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - uses: pnpm/action-setup@v3
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: 'pnpm', cache-dependency-path: frontend/pnpm-lock.yaml }
+      - run: uv sync --frozen
+        working-directory: ./backend
+      - run: pnpm install --frozen-lockfile
+        working-directory: ./frontend
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium firefox
+        working-directory: ./frontend
+      - name: Start test stack
+        run: ./scripts/start-test-stack.sh &
+        env:
+          # Test-mode env vars (mock LLM, in-memory SQLite, fixture seeds)
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+          MOCK_LLM: "1"
+          MOCK_DRIVE: "1"
+      - name: Wait for stack ready
+        run: ./scripts/wait-for-stack.sh
+      - name: Run Playwright
+        run: pnpm exec playwright test
+        working-directory: ./frontend
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+      - name: Upload Playwright trace
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: frontend/test-results/
+          retention-days: 30
+
+  # ────────────────────────────────────────────────────────────────
+  # CI summary (a single check that gates merging — set as required)
+  # ────────────────────────────────────────────────────────────────
+  ci-summary:
+    name: CI summary
+    if: always()
+    runs-on: ubuntu-latest
+    needs:
+      - backend-unit
+      - backend-integration
+      - backend-quality
+      - frontend-unit
+      - frontend-quality
+      - e2e
+    steps:
+      - name: Check all jobs succeeded or were skipped
+        run: |
+          set -eu
+          # Jobs are allowed to skip (when target dir absent), but never fail
+          for result in "${{ needs.backend-unit.result }}" \
+                        "${{ needs.backend-integration.result }}" \
+                        "${{ needs.backend-quality.result }}" \
+                        "${{ needs.frontend-unit.result }}" \
+                        "${{ needs.frontend-quality.result }}" \
+                        "${{ needs.e2e.result }}"; do
+            if [ "$result" = "failure" ]; then
+              echo "A required job failed."
+              exit 1
+            fi
+          done
+          echo "All jobs passed or were skipped (waiting for code)."

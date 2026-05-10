@@ -1,0 +1,61 @@
+version: 2
+
+updates:
+  # Keep GitHub Actions versions current (security + new features)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # Backend Python dependencies (activates once backend/pyproject.toml exists)
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - python
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    # Group patches together to reduce PR noise; majors as separate PRs
+    groups:
+      backend-patches:
+        update-types:
+          - patch
+          - minor
+
+  # Frontend npm dependencies (activates once frontend/package.json exists)
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Taipei
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - javascript
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      frontend-patches:
+        update-types:
+          - patch
+          - minor

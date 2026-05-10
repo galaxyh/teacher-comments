@@ -1,0 +1,89 @@
+# Pre-commit hooks per TDD-001 §8.2.
+#
+# Install once:  pre-commit install
+# Run manually:  pre-commit run --all-files
+#
+# CI also enforces these checks via GitHub Actions; pre-commit is a fast
+# local feedback layer to avoid the round-trip.
+
+repos:
+  # ────────────────────────────────────────────────────────────────
+  # Generic hygiene
+  # ────────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'  # markdown allows trailing spaces for line breaks
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: 'mockups/.*'  # mockups have no JSON; safety
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1024']  # 1MB cap
+
+  # ────────────────────────────────────────────────────────────────
+  # Doc consistency (always runs; project-specific)
+  # ────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: check-docs
+        name: Cross-doc consistency
+        entry: python3 scripts/check_docs.py
+        language: system
+        pass_filenames: false
+        files: '^(docs/.*\.md|README\.md|CLAUDE\.md|scripts/check_docs\.py)$'
+
+  # ────────────────────────────────────────────────────────────────
+  # Backend hooks (auto-skip if backend/ does not yet exist)
+  # ────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: backend-ruff
+        name: ruff (backend)
+        entry: bash -c 'if [ -f backend/pyproject.toml ]; then cd backend && uv run ruff check .; else echo "skip — no backend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^backend/.*\.py$'
+
+      - id: backend-mypy
+        name: mypy --strict (backend)
+        entry: bash -c 'if [ -f backend/pyproject.toml ]; then cd backend && uv run mypy --strict app; else echo "skip — no backend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^backend/.*\.py$'
+
+      - id: backend-pytest-fast
+        name: pytest unit (backend, fast)
+        entry: bash -c 'if [ -f backend/pyproject.toml ]; then cd backend && uv run pytest tests/unit -x -q --no-header; else echo "skip — no backend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^backend/.*\.py$'
+
+  # ────────────────────────────────────────────────────────────────
+  # Frontend hooks (auto-skip if frontend/ does not yet exist)
+  # ────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: frontend-tsc
+        name: tsc --noEmit (frontend)
+        entry: bash -c 'if [ -f frontend/package.json ]; then cd frontend && pnpm exec tsc --noEmit; else echo "skip — no frontend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx)$'
+
+      - id: frontend-eslint
+        name: eslint (frontend)
+        entry: bash -c 'if [ -f frontend/package.json ]; then cd frontend && pnpm exec eslint src; else echo "skip — no frontend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx|js|jsx)$'
+
+      - id: frontend-vitest-fast
+        name: vitest unit (frontend, fast)
+        entry: bash -c 'if [ -f frontend/package.json ]; then cd frontend && pnpm test --run --bail; else echo "skip — no frontend/"; fi'
+        language: system
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx)$'
