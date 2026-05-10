@@ -113,6 +113,16 @@ backend/
 
 ### 2.2 Frontend module tree (Next.js App Router)
 
+> **V1 walking-skeleton scope vs full vision** — the tree below is the full V1 vision.
+> The shipped walking skeleton (Phases 1-12) collapses several paths to keep page count
+> low; per-screen splits reactivate as needed in V1.x. **Actually shipped routes**:
+> `/`, `/onboarding`, `/batch`, `/evaluation/new`, `/pii`, `/settings`. Not yet shipped:
+> per-screen splits under `/onboarding/{attestation,drive-root,folder-mapping}` (one
+> wizard page handles all 3 steps); per-section split under `/settings/{llm,pii,...}`
+> (one settings page); browsing screens (`/semester/[label]`, `/student/[pseudo_id]`,
+> `/file/[drive_file_id]`, `/evaluation/[semester]/[pseudo_id]`) — login is folded into
+> `/` with conditional rendering on `/me` 401.
+
 ```
 frontend/
 ├── package.json                  # pnpm preferred (smaller lockfile)
@@ -122,42 +132,35 @@ frontend/
 ├── src/
 │   ├── app/                      # Next.js App Router
 │   │   ├── layout.tsx
-│   │   ├── page.tsx              # / (dashboard)
-│   │   ├── login/page.tsx        # /login
-│   │   ├── onboarding/
-│   │   │   ├── attestation/page.tsx     # /onboarding/attestation
-│   │   │   ├── drive-root/page.tsx      # /onboarding/drive-root
-│   │   │   └── folder-mapping/page.tsx  # /onboarding/folder-mapping
-│   │   ├── semester/[label]/page.tsx
-│   │   ├── student/[pseudo_id]/page.tsx
-│   │   ├── file/[drive_file_id]/page.tsx
-│   │   ├── evaluation/[semester]/[pseudo_id]/page.tsx
-│   │   └── settings/
-│   │       ├── llm/page.tsx
-│   │       ├── pii/page.tsx
-│   │       ├── folder-mapping/page.tsx
-│   │       ├── budget/page.tsx
-│   │       └── account/page.tsx
-│   ├── components/               # Reusable presentational
+│   │   ├── page.tsx              # / (dashboard; login CTA when 401) — SHIPPED
+│   │   ├── batch/page.tsx        # /batch (Phase 7) — SHIPPED
+│   │   ├── evaluation/
+│   │   │   ├── new/page.tsx              # /evaluation/new (Phase 6) — SHIPPED
+│   │   │   └── [semester]/[pseudo_id]/page.tsx  # detail view — V1.x
+│   │   ├── onboarding/page.tsx   # /onboarding (single wizard, Phase 8) — SHIPPED
+│   │   │   # V1.x split: attestation/, drive-root/, folder-mapping/
+│   │   ├── pii/page.tsx          # /pii (Phase 11) — SHIPPED
+│   │   ├── settings/page.tsx     # /settings (Phase 12) — SHIPPED
+│   │   │   # V1.x split: llm/, pii/, folder-mapping/, budget/, account/
+│   │   ├── login/page.tsx        # /login — folded into /; standalone page is V1.x
+│   │   ├── semester/[label]/page.tsx        # browsing — V1.x
+│   │   ├── student/[pseudo_id]/page.tsx     # browsing — V1.x
+│   │   └── file/[drive_file_id]/page.tsx    # browsing — V1.x
+│   ├── components/               # Reusable presentational (V1.x — walking-skeleton inlines)
 │   │   ├── ui/                   # Primitives (Button, Card, Badge, Dialog…)
 │   │   ├── editor/               # Markdown editor + Mermaid preview
 │   │   ├── badges/               # State badges (pending / processing / …)
 │   │   ├── wizard/               # Mapping wizard (D14)
 │   │   └── progress/             # Batch progress bar + cost meter
 │   ├── lib/
-│   │   ├── api/                  # Generated TS client from FastAPI OpenAPI
-│   │   │   └── client.ts
-│   │   ├── auth/                 # Cookie / session helpers
-│   │   ├── hooks/                # React hooks (useFiles, useBatch, …)
-│   │   └── utils/
+│   │   ├── api.ts                # Hand-written client in walking-skeleton; V1.x → openapi-typescript
+│   │   ├── auth/                 # Cookie / session helpers (V1.x — currently inlined)
+│   │   ├── hooks/                # React hooks (useFiles, useBatch, …) (V1.x)
+│   │   └── utils/                # (V1.x)
 │   ├── styles/
-│   │   ├── globals.css
-│   │   └── tokens.css            # Design tokens (extracted from mockups)
-│   └── types/
-│       └── api.ts                # Generated from OpenAPI; do not edit by hand
-└── tests/
-    ├── unit/                     # vitest + @testing-library/react
-    └── e2e/                      # Playwright specs
+│   │   └── globals.css           # Tailwind directives; tokens.css extraction → V1.x
+│   └── test/                     # vitest setup
+└── (tests colocated as *.test.ts; e2e/ for Playwright is V1.x)
 ```
 
 **Frontend conventions**:
@@ -282,26 +285,25 @@ sequenceDiagram
 - Mapping wizard interrupts scan **mid-flow**; scan resume requires the mapping to be persisted before continuing
 - Scan progress communicated via SSE (Server-Sent Events) — frontend defers connection per `frontend.md` lesson
 
-### 3.2 Batch processing flow (with edit-conflict prompts)
+### 3.2 Batch processing flow
 
-**易讀說明 — 3 個階段**：
+> **V1 walking-skeleton vs full vision**: the per-file `reprocess_pending`
+> overwrite/keep prompt UX (originally Phase A steps 1-7) is **deferred to V1.x**
+> per Phase 5alt's documented out-of-scope list (D-2026-05-10-13). V1 walks
+> straight from "Click [處理本學期]" → `POST /batch/start` and the worker
+> processes any drive_files with state ∈ {null, pending, reprocess_pending}
+> without a per-file UI gate. The two-step preview/confirm UX returns when
+> bulk actions become a real safety concern (V1.x).
 
-**A. 批次預覽 + 衝突確認**（步驟 1-7）
+**易讀說明 — 2 個階段**：
+
+**A. 啟動批次**（步驟 1-4）
 1. Teacher → Frontend：按 [處理本學期]
-2. Frontend → Backend：`GET /batch/preview?semester=X`
-3. Backend → DB：`SELECT files WHERE state IN (pending, reprocess_pending)`
-4. DB → Backend：file list
-5. Backend → Frontend：`preview {pending: [...], reprocess_pending: [...]}`
-6. Frontend → Teacher：顯示清單；對 `reprocess_pending` 逐個詢問 [覆蓋] / [保留]
-7. Teacher → Frontend：確認（例：5 個覆蓋、3 個保留）
+2. Frontend → Backend：`POST /batch/start {semester_label: X}`
+3. Backend → DB：`INSERT batch_job (status='running', total: N)`; BatchWorker._collect_candidates picks files where artifact state ∈ {null, pending, reprocess_pending}
+4. Backend → Frontend：202 `{batch_job_id, total, status}` + Frontend opens SSE `/batch/<id>/events`
 
-**B. 啟動批次**（步驟 8-11）
-8. Frontend → Backend：`POST /batch/start {semester: X, decisions: {...}}`
-9. Backend → DB：`INSERT batch_job (status='running', total: 12)`
-10. Backend → BatchWorker：enqueue 12 file tasks
-11. Backend → Frontend：202 + 開啟 SSE `/batch/<id>/events`
-
-**C. 並行處理 loop**（每檔重複；最多 N=4 並行）
+**B. 並行處理 loop**（每檔重複；最多 N=4 並行）
 - BatchWorker → DBWriteQueue → DB：`state='processing'`（atomic）
 - BatchWorker → 抽取內容（docx / image / audio）
 - BatchWorker → LLMService：`anonymize(content)` + `call(tier)`
@@ -334,16 +336,11 @@ sequenceDiagram
     participant OR as OpenRouter
 
     T->>FE: Click "Process this semester"
-    FE->>BE: GET /batch/preview?semester=X
-    BE->>DB: SELECT files WHERE state IN (pending, reprocess_pending)
-    DB-->>BE: file list
-    BE-->>FE: preview {pending: [...], reprocess_pending: [...]}
-    FE->>T: Show list, ask per-file decision for reprocess_pending
-    T->>FE: Confirm: 5 overwrite, 3 keep
-    FE->>BE: POST /batch/start {semester: X, decisions: {...}}
-    BE->>DB: INSERT batch_job (status='running', total: 12)
-    BE->>W: enqueue 12 file tasks
-    BE-->>FE: 202 {batch_job_id}
+    FE->>BE: POST /batch/start {semester_label: X}
+    BE->>BE: BatchWorker._collect_candidates (state IN null|pending|reprocess_pending)
+    BE->>DB: INSERT batch_job (status='running', total: N)
+    BE->>W: enqueue N file tasks
+    BE-->>FE: 202 {batch_job_id, total, status}
     FE->>BE: Open SSE /batch/<id>/events
     loop Per file (up to N=4 in parallel)
         W->>Q: state='processing' (atomic write)

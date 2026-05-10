@@ -265,14 +265,24 @@ CREATE TABLE pii_mapping (
   pii_type                    TEXT NOT NULL CHECK (pii_type IN
                                 ('student_name', 'student_id', 'parent_name',
                                  'phone', 'address', 'email', 'other_name', 'other')),
-  original_value_encrypted    BLOB NOT NULL,                   -- AES-256
+  -- HMAC-SHA-256(plaintext) keyed with PII_ENCRYPTION_KEY. Deterministic →
+  -- enables O(1) "have we seen this plaintext?" lookup. Added per
+  -- D-2026-05-10-08 (migration 0002). 64 hex chars.
+  lookup_hash                 CHAR(64) NOT NULL,
+  -- AES-256-GCM with random per-record nonce. Used to restore back to plaintext
+  -- when displaying to the teacher; never used as a uniqueness key (random nonces
+  -- make ciphertext non-deterministic).
+  original_value_encrypted    BLOB NOT NULL,
   pseudonym                   TEXT NOT NULL,                   -- 'S001'
   display_name                TEXT,                            -- 教師可改顯示名 (D13)
   scope                       TEXT NOT NULL DEFAULT 'global',
   created_at                  TEXT DEFAULT CURRENT_TIMESTAMP,
   source                      TEXT NOT NULL DEFAULT 'auto',    -- 'auto' / 'manual' (D13)
-  UNIQUE (teacher_id, pseudonym),
-  UNIQUE (teacher_id, pii_type, original_value_encrypted)
+  -- Note: `(teacher_id, pseudonym)` is intentionally NOT unique — manual aliases
+  -- added via D13 PII Min UI may share a pseudonym (multiple spellings of the
+  -- same name → same S001). Uniqueness is enforced on `lookup_hash` below.
+  -- Per D-2026-05-10-19 (migration 0003 dropped the original `uq_pii_pseudonym`).
+  UNIQUE (teacher_id, pii_type, lookup_hash)
 );
 
 -- 學期評語

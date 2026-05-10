@@ -7,10 +7,13 @@
 
 ## Status
 
-**Stage**: Engineering design freeze — V1 implementation ready
+**Stage**: V1 walking-skeleton complete — Phases 1-12 + hardening pass shipped
 
+- **Backend**: 27 endpoints across 9 routers; 7 document extractors (docx/xlsx/pptx/pdf/image/audio/text); LLM chokepoint with PII anonymise/restore round-trip; full vision + audio tier support; 3 alembic migrations; 129 pytest passing
+- **Frontend**: Next.js 15 / React 19 / Tailwind 3.4; 7 routes (`/`, `/onboarding`, `/batch`, `/evaluation/new`, `/pii`, `/settings`); typed API client; 5 vitest passing
+- **What's done vs not**: see [`docs/work-plan.md`](docs/work-plan.md) — phase-by-phase tally with V1.x scope explicit
 - **Functional spec**: [`docs/PRD.md`](docs/PRD.md) (v0.2, 17 locked decisions)
-- **Decision log**: [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md) (D-01 through D-05)
+- **Decision log**: [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md) (D-2026-05-10-01 through D-2026-05-10-21)
 - **Architectural rationale**: [`docs/adr/ADR-001-system-foundation.md`](docs/adr/ADR-001-system-foundation.md) (7 axes, options evaluated)
 
 **Engineering design docs**:

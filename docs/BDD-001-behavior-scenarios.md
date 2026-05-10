@@ -819,12 +819,19 @@ Scenario: Monthly budget exceeded mid-batch
 
 ### 5.1 Recommended BDD framework: `pytest-bdd`
 
+> **V1 walking-skeleton status**: NOT YET ADOPTED. Backend `pyproject.toml`
+> does not include `pytest-bdd`; behaviour coverage is currently provided by
+> 129 plain pytest unit + integration tests. This section describes the
+> intended V1.x adoption path once the test pyramid grows past what plain
+> pytest test names communicate clearly. See [`docs/work-plan.md`](work-plan.md)
+> for the active roadmap.
+
 For the Python backend (FastAPI):
 - `pytest-bdd` integrates Gherkin into pytest's runner
 - Each `.feature` file becomes a parametrizable test fixture set
 - Step definitions live in `tests/bdd/steps/`
 
-**Example mapping**:
+**Example mapping** (V1.x):
 ```
 docs/BDD-001-behavior-scenarios.md   <-- this doc (human spec)
 tests/bdd/features/F-1-oauth.feature  <-- Gherkin extracted
