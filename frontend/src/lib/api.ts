@@ -67,6 +67,26 @@ export interface EvaluationContextResponse {
   work_summaries: string[];
 }
 
+export interface BatchStatusResponse {
+  batch_job_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  total: number;
+  completed: number;
+  failed: number;
+  total_cost_usd: number | null;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface BatchEvent {
+  batch_job_id: string;
+  state: 'running' | 'completed' | 'failed' | 'cancelled';
+  total: number;
+  completed: number;
+  failed: number;
+  last_event: { drive_file_id: string; ok: boolean; reason: string | null } | null;
+}
+
 export interface EvaluationResponse {
   id: string;
   teacher_id: string;
@@ -129,5 +149,42 @@ export const api = {
         body: JSON.stringify({ edited_text: editedText }),
       }),
     );
+  },
+
+  async startBatch(semesterLabel: string): Promise<{
+    batch_job_id: string;
+    total: number;
+    status: string;
+  }> {
+    return unwrap(
+      await baseFetch('/batch/start', {
+        method: 'POST',
+        body: JSON.stringify({ semester_label: semesterLabel }),
+      }),
+    );
+  },
+
+  async cancelBatch(batchJobId: string): Promise<void> {
+    await baseFetch(`/batch/${encodeURIComponent(batchJobId)}/cancel`, {
+      method: 'POST',
+    });
+  },
+
+  async getBatchStatus(batchJobId: string): Promise<BatchStatusResponse> {
+    return unwrap<BatchStatusResponse>(
+      await baseFetch(`/batch/${encodeURIComponent(batchJobId)}/status`),
+    );
+  },
+
+  /**
+   * Open an EventSource for batch progress. Returns the EventSource handle so
+   * the caller can `.close()` on unmount. The browser auto-reconnects on
+   * transient drops; the server emits a terminal event on completion which we
+   * use to close cleanly.
+   */
+  openBatchEventStream(batchJobId: string): EventSource {
+    return new EventSource(`/batch/${encodeURIComponent(batchJobId)}/events`, {
+      withCredentials: true,
+    });
   },
 };

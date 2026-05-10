@@ -66,19 +66,13 @@ export default function HomePage() {
         </p>
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">評語產生</h2>
-        <p className="text-sm text-ink-muted">
-          選擇學期與學生，撰寫評價種子，由 AI 生成初稿。
-        </p>
-        <div className="space-y-2">
-          <Link
-            href="/evaluation/new"
-            className="inline-block rounded-md border border-accent text-accent px-4 py-2 hover:bg-accent hover:text-white"
-          >
-            撰寫新評語 →
-          </Link>
-        </div>
+      <section className="grid gap-4 md:grid-cols-2">
+        <Card title="批次處理" body="將 Drive 中本學期檔案送 LLM 摘要。" href="/batch" />
+        <Card
+          title="評語產生"
+          body="選擇學期與學生，撰寫評價種子，由 AI 生成初稿。"
+          href="/evaluation/new"
+        />
       </section>
 
       <section>
@@ -94,5 +88,17 @@ export default function HomePage() {
         </button>
       </section>
     </div>
+  );
+}
+
+function Card({ title, body, href }: { title: string; body: string; href: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-md border border-stone-200 bg-white p-4 hover:border-accent transition"
+    >
+      <h2 className="font-semibold text-accent">{title}</h2>
+      <p className="mt-1 text-sm text-ink-muted">{body}</p>
+    </Link>
   );
 }
