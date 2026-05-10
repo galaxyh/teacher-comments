@@ -3,7 +3,7 @@
 > **Document Status**: Draft v0.2 — post-OQ-review
 > **Owner**: Steven Chen (`steven@chtsecurity.com`)
 > **Created**: 2026-05-10 | **Last Updated**: 2026-05-10
-> **Locked Decisions Reference**: see §2; full rationale in `docs/adr/ADR-001-system-foundation.md` (to be authored after PRD v1.0 freeze)
+> **Locked Decisions Reference**: see §2; full architectural rationale (with options evaluated and rejected) in [`docs/adr/ADR-001-system-foundation.md`](adr/ADR-001-system-foundation.md)
 
 ---
 
@@ -16,7 +16,7 @@
 
 **Related artifacts**:
 - `docs/adr/DECISIONS.md` — chronological decision log (`D-2026-05-10-02`, `D-2026-05-10-03`)
-- `docs/adr/ADR-001-system-foundation.md` — *(planned)* full architectural rationale
+- [`docs/adr/ADR-001-system-foundation.md`](adr/ADR-001-system-foundation.md) — architectural rationale across 7 axes (deployment, tech stack, privacy, processing model, LLM, persistence, distribution)
 - `CLAUDE.md` — Claude Code session protocols
 
 **How to read this document**:
@@ -1025,4 +1025,4 @@ Constraints:
 
 ---
 
-> **End of PRD v0.2**. All 13 Open Questions from v0.1 review resolved. Next milestone: ADR-001 + implementation kickoff.
+> **End of PRD v0.2**. All 13 Open Questions from v0.1 review resolved. ADR-001 written (2026-05-10). Next milestone: implementation kickoff.

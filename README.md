@@ -24,6 +24,7 @@
 
 This project uses the lightweight governance kit:
 - [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md) — chronological decision log
+- [`docs/adr/ADR-001-system-foundation.md`](docs/adr/ADR-001-system-foundation.md) — architectural rationale (7 axes, options evaluated)
 - [`CLAUDE.md`](CLAUDE.md) — Pre-Action Verification, Reversal Protocol, lessons-learned trigger rules for Claude Code sessions
 - [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml) — markdown link CI (PR offline check + weekly full check)
 
