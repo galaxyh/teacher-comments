@@ -27,7 +27,7 @@
   Out of scope: Playwright E2E, scripts/start-test-stack.sh / wait-for-stack.sh — referenced by the existing `e2e` workflow job but require a mock-LLM + mock-Drive harness. The E2E job will skip until those scripts ship (the workflow's `if: hashFiles(...)` guards already handle this).
 - **Rationale**: ruff and mypy strictness should be non-blocking after first install — every false-positive ignore that lands in pyproject.toml has a rationale comment so future maintainers don't have to re-derive why. The frontend test focuses on the API client because that's the piece most likely to drift from backend response shapes (ApiError reason fields are part of the UI's branching logic). Skipping Playwright is honest scope discipline — adding it without a working test stack would make the CI red without catching real bugs.
 - **Files**: `backend/pyproject.toml` (ruff ignores + rationale), `backend/app/adapters/document_extractors/pdf.py` (nested-if collapse), `backend/app/adapters/document_extractors/text.py` (unused var), `backend/app/services/pii_anonymizer.py` (return-vs-assign cleanup), `backend/app/adapters/document_extractors/docx.py` (`# noqa: SIM102`), various Python files auto-formatted (UP rules), `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`, `frontend/src/lib/api.test.ts`
-- **Commit**: _fill after commit_
+- **Commit**: `2446595`
 
 ### D-2026-05-10-20 Implementation Phase 12 — Settings page (LLM tier overrides + budget gauge)
 - **Decision**: Per-teacher LLM tier override + monthly budget visibility per PRD §5 / D8:
