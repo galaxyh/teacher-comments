@@ -27,7 +27,7 @@
   Walking-skeleton simplification: scan is single-shot rather than DESIGN-001's suspend/resume pattern. When mapping is needed, scan returns the candidate names; caller posts mapping then re-scans. Two API round-trips total — no observable UX difference, much simpler implementation. (DESIGN-001 §4.4's suspend/resume API can be added in V2 if Drive grows beyond the design scale where rescan cost becomes a concern.)
 - **Rationale**: D5 (Drive read-only) and D14 (mapping wizard) are non-negotiable; this implements them with minimal moving parts. `asyncio.to_thread` over the sync google-api-python-client is the right trade at design scale (~5 list calls per scan). Persisted folder mapping (D14) lives in `teacher.folder_mapping` JSON — no separate table needed. Phase 4a deliberately leaves `download_file` / `stream_audio` / `content_hash` to Phase 4b (file processing pipeline) to keep this commit reviewable.
 - **Files**: `backend/app/adapters/drive_client.py`, `backend/app/services/auth_service.py` (added `get_credentials`), `backend/app/services/drive_sync_service.py`, `backend/app/schemas/drive.py`, `backend/app/routers/drive.py`, `backend/app/main.py`, `backend/tests/integration/test_drive_sync.py`
-- **Commit**: _fill after commit_
+- **Commit**: `7efad05`
 - **Lesson**: None new. The D-2026-05-10-08 alembic-async-commit lesson already covers the test-fixture migration path. Phase 4b may surface lessons around document extraction error classification.
 
 ### D-2026-05-10-08 Implementation Phase 3 — PII Anonymizer + LLM Service chokepoints; lookup_hash schema refinement; alembic async commit fix
