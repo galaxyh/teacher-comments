@@ -17,6 +17,17 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-14 Implementation Phase 5b — extractors for xlsx / pptx / pdf
+- **Decision**: Add 3 V1 document extractors per DESIGN-001 §8.2:
+  (a) `XlsxExtractor` (openpyxl, `read_only=True data_only=True`) — sheet-per-section, GFM pipe tables, 1000-row cap per sheet with warning surface, blank-sheet warning, legacy `.xls` (OLE) → `UnsupportedFormatError`.
+  (b) `PptxExtractor` (python-pptx) — slide-per-section with title detection (placeholder idx==0), bullet-list rendering of body text frames, `has_images=True` flagged on picture shapes (Phase 7+ vision-tier hook), legacy `.ppt` (OLE) → `UnsupportedFormatError`.
+  (c) `PdfExtractor` (pypdf) — text-only V1; tries empty password on `is_encrypted=True` (handles common print-restriction-only "encryption"); true encrypted → `UnsupportedFormatError`; per-page warnings for pages with no text layer (likely scanned-image PDF, OCR fallback is Phase 7+).
+  Registry order updated: `Docx → Xlsx → Pptx → Pdf → PlainText`. `ProcessingPipeline.TEXT_SUMMARY_MIMES` extended; `_filename_is_text` extended to recognise `.xlsx/.pptx/.pdf`.
+  Tests: 11 new (4 xlsx + 3 pptx + 3 pdf + 1 registry routing) — full suite 102 passed.
+- **Rationale**: One commit per format would be 3 PRs; bundling them into Phase 5b is justified because they share structure (all are zip-or-stream parsers wrapped via `asyncio.to_thread`, all map narrow OLE-magic to `UnsupportedFormat`, all surface warnings rather than fail-hard for partial extraction). The Protocol+Registry pattern from Phase 4b absorbs all three with no signature changes — proves the abstraction. Image-bearing pptx flagged via `has_images=True` deliberately routes nowhere yet — adding the boolean now means Phase 7+ (vision tier) only adds the routing logic, not a schema change. PDF empty-password retry handles a real-world failure mode (Drive-stored homework scans where the teacher set print-restrictions years ago) — without this, those PDFs would land in `unprocessable` despite being readable.
+- **Files**: `backend/app/adapters/document_extractors/xlsx.py`, `backend/app/adapters/document_extractors/pptx.py`, `backend/app/adapters/document_extractors/pdf.py`, `backend/app/adapters/document_extractors/__init__.py` (registry), `backend/app/services/processing_pipeline.py` (TEXT_SUMMARY_MIMES + filename test), `backend/tests/unit/test_extractors_phase5b.py`
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-13 Implementation Phase 5alt — BatchWorker + SSE progress
 - **Decision**: Add concurrent batch processing with live progress via Server-Sent Events:
   (a) `app/services/sse_publisher.py` — minimal in-process pub/sub keyed by topic. Subscribers attached via async generator (`subscribe(topic)`); publishers broadcast non-blocking (drop on full queue rather than stall). Late subscribers miss earlier events; combine with `/batch/{id}/status` for snapshot.

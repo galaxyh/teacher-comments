@@ -59,13 +59,19 @@ class DocumentExtractorRegistry:
 
 
 def build_default_registry() -> DocumentExtractorRegistry:
-    """Default registry for V1 walking skeleton. Add extractors as they ship."""
+    """Default registry for V1. Order: most-specific MIME → broad suffix-based last."""
     from app.adapters.document_extractors.docx import DocxExtractor
+    from app.adapters.document_extractors.pdf import PdfExtractor
+    from app.adapters.document_extractors.pptx import PptxExtractor
     from app.adapters.document_extractors.text import PlainTextExtractor
+    from app.adapters.document_extractors.xlsx import XlsxExtractor
 
     return DocumentExtractorRegistry(
         extractors=[
             DocxExtractor(),
+            XlsxExtractor(),
+            PptxExtractor(),
+            PdfExtractor(),
             PlainTextExtractor(),  # last — broad-by-suffix, low-priority
         ]
     )

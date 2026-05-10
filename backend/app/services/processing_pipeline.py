@@ -44,9 +44,12 @@ class ProcessingResult:
     warnings: list[str]
 
 
-# Mime types we route to the text summarisation tier in Phase 4b
+# Mime types we route to the text summarisation tier (Phase 4b + 5b extractors)
 TEXT_SUMMARY_MIMES: frozenset[str] = frozenset({
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",        # .xlsx
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
+    "application/pdf",                                                           # .pdf
     "text/plain",
     "text/markdown",
 })
@@ -123,7 +126,9 @@ class ProcessingPipeline:
 
 
 def _filename_is_text(filename: str) -> bool:
-    return filename.lower().endswith((".docx", ".txt", ".md", ".markdown"))
+    return filename.lower().endswith(
+        (".docx", ".xlsx", ".pptx", ".pdf", ".txt", ".md", ".markdown")
+    )
 
 
 def _build_summary_prompt(
