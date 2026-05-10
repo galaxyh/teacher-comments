@@ -10,6 +10,7 @@
 **Stage**: Spec freeze — V1 implementation kickoff
 - Full requirements: [`docs/PRD.md`](docs/PRD.md) (v0.2, 17 locked decisions)
 - Decision log: [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md)
+- Design mockup (informational, not the V1 spec): [`mockups/`](mockups/) — standalone React UMD prototype, codenamed 「墨痕」
 
 ## Tech Stack
 
