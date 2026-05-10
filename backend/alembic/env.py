@@ -44,13 +44,6 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    # Set the same PRAGMAs the app sets (ARCH-001 §6.5 — WAL is a system-wide invariant,
-    # not an app-only setting). PRAGMA journal_mode=WAL is persistent in the DB header.
-    if connection.dialect.name == "sqlite":
-        connection.exec_driver_sql("PRAGMA journal_mode=WAL")
-        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
-        connection.exec_driver_sql("PRAGMA synchronous=NORMAL")
-
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -66,8 +59,21 @@ async def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+    # Set SQLite PRAGMAs OUTSIDE any transaction context — PRAGMA journal_mode=WAL
+    # silently fails inside an open transaction. WAL is a DB-header setting that
+    # persists once set; subsequent app connections see WAL automatically.
     async with connectable.connect() as connection:
+        if connection.dialect.name == "sqlite":
+            await connection.exec_driver_sql("PRAGMA journal_mode=WAL")
+            await connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+            await connection.exec_driver_sql("PRAGMA synchronous=NORMAL")
         await connection.run_sync(do_run_migrations)
+        # Explicit commit — `engine.connect()` is begin-on-exit-rollback by default
+        # in SQLAlchemy 2.0 async. Without this, alembic_version updates are silently
+        # dropped on dispose. (Standard sync alembic env.py works because the sync
+        # connection auto-commits in non-transactional DDL mode; the async wrapper
+        # does not propagate this autocommit behaviour through run_sync.)
+        await connection.commit()
     await connectable.dispose()
 
 

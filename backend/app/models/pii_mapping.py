@@ -30,11 +30,10 @@ class PIIMapping(Base):
     __tablename__ = "pii_mapping"
     __table_args__ = (
         UniqueConstraint("teacher_id", "pseudonym", name="uq_pii_pseudonym"),
+        # `lookup_hash` makes the constraint enforceable under random-nonce AES-GCM
+        # (per migration 20260510_0002 / D-2026-05-10-08).
         UniqueConstraint(
-            "teacher_id",
-            "pii_type",
-            "original_value_encrypted",
-            name="uq_pii_value",
+            "teacher_id", "pii_type", "lookup_hash", name="uq_pii_lookup"
         ),
         CheckConstraint(
             f"pii_type IN ({', '.join(repr(t) for t in PII_TYPES)})",
@@ -49,7 +48,15 @@ class PIIMapping(Base):
     )
 
     pii_type: Mapped[str] = mapped_column(String, nullable=False)
+
+    # `lookup_hash` is HMAC-SHA-256(plaintext) keyed with PII_ENCRYPTION_KEY.
+    # Deterministic → enables O(1) lookup. Hex string (64 chars).
+    lookup_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    # `original_value_encrypted` is AES-256-GCM with random per-record nonce.
+    # The two columns serve different purposes: hash for indexing, ciphertext for restore.
     original_value_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+
     pseudonym: Mapped[str] = mapped_column(String, nullable=False, index=True)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
