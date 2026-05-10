@@ -26,7 +26,7 @@
   Tests: 11 new (4 xlsx + 3 pptx + 3 pdf + 1 registry routing) — full suite 102 passed.
 - **Rationale**: One commit per format would be 3 PRs; bundling them into Phase 5b is justified because they share structure (all are zip-or-stream parsers wrapped via `asyncio.to_thread`, all map narrow OLE-magic to `UnsupportedFormat`, all surface warnings rather than fail-hard for partial extraction). The Protocol+Registry pattern from Phase 4b absorbs all three with no signature changes — proves the abstraction. Image-bearing pptx flagged via `has_images=True` deliberately routes nowhere yet — adding the boolean now means Phase 7+ (vision tier) only adds the routing logic, not a schema change. PDF empty-password retry handles a real-world failure mode (Drive-stored homework scans where the teacher set print-restrictions years ago) — without this, those PDFs would land in `unprocessable` despite being readable.
 - **Files**: `backend/app/adapters/document_extractors/xlsx.py`, `backend/app/adapters/document_extractors/pptx.py`, `backend/app/adapters/document_extractors/pdf.py`, `backend/app/adapters/document_extractors/__init__.py` (registry), `backend/app/services/processing_pipeline.py` (TEXT_SUMMARY_MIMES + filename test), `backend/tests/unit/test_extractors_phase5b.py`
-- **Commit**: _fill after commit_
+- **Commit**: `f5d9928`
 
 ### D-2026-05-10-13 Implementation Phase 5alt — BatchWorker + SSE progress
 - **Decision**: Add concurrent batch processing with live progress via Server-Sent Events:
