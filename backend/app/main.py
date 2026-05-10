@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.core.exceptions import AppError
 from app.core.lifespan import lifespan
-from app.routers import auth, system
+from app.routers import auth, drive, system
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +44,8 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(system.router)
-    app.include_router(auth.router)  # /auth/login, /auth/callback, /auth/logout, /me
-    # Future: app.include_router(drive.router, prefix="/drive")
+    app.include_router(auth.router)   # /auth/login, /auth/callback, /auth/logout, /me
+    app.include_router(drive.router)  # /drive/list, /drive/scan, /onboarding/*
     # Future: app.include_router(batch.router, prefix="/batch")
     # Future: app.include_router(evaluation.router, prefix="/eval")
     # Future: app.include_router(settings_router.router, prefix="/settings")

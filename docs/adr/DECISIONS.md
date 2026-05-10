@@ -17,6 +17,19 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-09 Implementation Phase 4a — Drive auth refresh + folder index + mapping wizard
+- **Decision**: Implement V1 Drive sync (read-only, indexing only — Phase 4b adds file processing):
+  (a) `app/adapters/drive_client.py` — google-api-python-client wrapped via `asyncio.to_thread`. No async-Drive SDK introduced (`aiogoogle` would add deps without measurable benefit at design scale).
+  (b) `AuthService.get_credentials(teacher_id)` — decrypts refresh_token, returns `google.oauth2.credentials.Credentials` with built-in lazy access-token refresh via google-auth library (no manual refresh logic in our code).
+  (c) `app/services/drive_sync_service.py` — `list_root_candidates`, `list_children`, `set_drive_root`, `set_folder_mapping`, `scan_root`. The 3-level walk (semester / student / category) detects standard category names (`學習紀錄` / `教師與學生互動紀錄` / `作品成果`) and persisted mapping (D14); unknown names are returned in `ScanResult.unmapped_category_names` so caller can show the mapping wizard.
+  (d) Routes: `GET /drive/list`, `GET /drive/folder/{id}/children`, `POST /drive/scan`, `POST /onboarding/drive-root`, `POST /onboarding/folder-mapping`. All gated by the session cookie (verified via 401-anonymous smoke test).
+  (e) Idempotent rescans: if `drive_modified_at` matches the indexed row, count as `files_unchanged`; otherwise UPDATE.
+  Walking-skeleton simplification: scan is single-shot rather than DESIGN-001's suspend/resume pattern. When mapping is needed, scan returns the candidate names; caller posts mapping then re-scans. Two API round-trips total — no observable UX difference, much simpler implementation. (DESIGN-001 §4.4's suspend/resume API can be added in V2 if Drive grows beyond the design scale where rescan cost becomes a concern.)
+- **Rationale**: D5 (Drive read-only) and D14 (mapping wizard) are non-negotiable; this implements them with minimal moving parts. `asyncio.to_thread` over the sync google-api-python-client is the right trade at design scale (~5 list calls per scan). Persisted folder mapping (D14) lives in `teacher.folder_mapping` JSON — no separate table needed. Phase 4a deliberately leaves `download_file` / `stream_audio` / `content_hash` to Phase 4b (file processing pipeline) to keep this commit reviewable.
+- **Files**: `backend/app/adapters/drive_client.py`, `backend/app/services/auth_service.py` (added `get_credentials`), `backend/app/services/drive_sync_service.py`, `backend/app/schemas/drive.py`, `backend/app/routers/drive.py`, `backend/app/main.py`, `backend/tests/integration/test_drive_sync.py`
+- **Commit**: _fill after commit_
+- **Lesson**: None new. The D-2026-05-10-08 alembic-async-commit lesson already covers the test-fixture migration path. Phase 4b may surface lessons around document extraction error classification.
+
 ### D-2026-05-10-08 Implementation Phase 3 — PII Anonymizer + LLM Service chokepoints; lookup_hash schema refinement; alembic async commit fix
 - **Decision**: Implement V1 chokepoints per ARCH-001 §4.1 invariants:
   (a) `app/services/pii_anonymizer.py` — regex layer (TW phone / email / TW national ID) with stable per-(teacher, pii_type) pseudonyms (S/PH/EM/NID/...), in-process cache, deterministic `lookup_hash` (HMAC-SHA-256 keyed with PII_ENCRYPTION_KEY) for O(1) "have we seen this plaintext before" queries — random-nonce AES-GCM kept for at-rest encryption.

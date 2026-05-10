@@ -19,7 +19,14 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.google_oauth import GoogleOAuthAdapter, TokenBundle
+from google.oauth2.credentials import Credentials
+
+from app.adapters.google_oauth import (
+    GOOGLE_TOKEN_URL,
+    SCOPES,
+    GoogleOAuthAdapter,
+    TokenBundle,
+)
 from app.config import Settings
 from app.core.exceptions import AuthError
 from app.db.session import get_sessionmaker
@@ -127,6 +134,39 @@ class AuthService:
         async with get_sessionmaker()() as session:
             return await session.get(Teacher, teacher_id)
 
+    async def get_credentials(self, *, teacher_id: str) -> Credentials:
+        """Return google.oauth2.credentials.Credentials for Drive calls.
+
+        The Credentials object handles lazy refresh internally — when the access
+        token expires, the next API call's underlying httplib2 transport refreshes
+        it via the refresh_token + token_url. We don't need to call .refresh()
+        manually unless we want a fresh token preemptively.
+
+        Raises:
+            OAuthRevokedError: teacher row has no refresh_token (logged out or
+              never logged in). UI must redirect to /auth/login.
+        """
+        teacher = await self.get_teacher(teacher_id=teacher_id)
+        if teacher is None or not teacher.oauth_refresh_token_encrypted:
+            from app.core.exceptions import OAuthRevokedError
+
+            raise OAuthRevokedError(
+                "No refresh token on file — re-authentication required",
+                context={"teacher_id": teacher_id},
+            )
+
+        refresh_token = get_oauth_cipher().decrypt_str(
+            teacher.oauth_refresh_token_encrypted
+        )
+        return Credentials(
+            token=None,  # forces refresh on first use
+            refresh_token=refresh_token,
+            token_uri=GOOGLE_TOKEN_URL,
+            client_id=self._settings.google_client_id.get_secret_value(),
+            client_secret=self._settings.google_client_secret.get_secret_value(),
+            scopes=list(SCOPES),
+        )
+
     # ── internals ──────────────────────────────────────────────────
 
     async def _upsert_teacher(
@@ -190,14 +230,3 @@ class AuthService:
         return await self._queue.submit(insert)
 
 
-def get_drive_token_placeholder() -> None:
-    """Stub — `AuthService.get_drive_token` deferred to Phase 3 (Drive sync).
-
-    Phase 2's walking skeleton scope is OAuth → store → /me; Drive calls happen
-    in Phase 3 where the lazy refresh path matters.
-
-    Raises if accidentally called.
-    """
-    raise NotImplementedError(
-        "get_drive_token is Phase 3 scope; Phase 2 only handles login/logout"
-    )
