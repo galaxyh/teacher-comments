@@ -17,6 +17,18 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-18 Implementation Phase 10 — audio STT tier
+- **Decision**: Add audio transcription via the `audio_standard` tier (D10 / D11):
+  (a) `OpenRouterClient.chat` extended with `audio_bytes` + `audio_mime`. Audio is included as an `input_audio` content part with `format` derived from MIME (mp3/wav/m4a/webm/ogg/flac). Co-exists with `image_bytes`.
+  (b) `LLMService.call` passes audio kwargs through chokepoint. Text prompt still anonymised + boundary-checked + restored — but PII inside the audio (spoken names) is the same residual risk as vision (LLM transcribes); mitigated via prompt instruction asking the model to substitute placeholders for student names / IDs / phones.
+  (c) `AudioExtractor` (mp3/wav/m4a/webm/ogg/flac; 25MB pre-encode warning). Returns `text=""` so pipeline routes bytes directly.
+  (d) `ProcessingPipeline._route_tier` extends to "text → summary_cheap, image → vision_cheap, audio → audio_standard". Vision branch returns `artifact_type='markdown_summary'`; audio branch returns `artifact_type='transcript'` (matches schema). max_output_tokens=5000 for transcripts (longer than summaries).
+  (e) D11: speaker count auto-detection delegated to the LLM via prompt — no client-side classification. Output format (monologue vs dialog) decided by the model.
+  Tests: 5 new (audio routes correctly, OpenRouter receives audio_bytes + format detection, message builder produces input_audio part, oversize warning, octet-stream MIME with .mp3/.m4a filename still routes to audio). FakeOpenRouter signatures updated in 2 existing test files. Full suite 116 passed.
+- **Rationale**: `input_audio` with base64 data part chosen over the OpenAI Whisper-style `audio.transcriptions.create` API because (1) we already use chat completions for vision tier — single code path, (2) Gemini Flash family natively handles audio via chat content parts, (3) we keep PII anonymise/restore round-trip in the same code path (transcriptions API would bypass it). The 25MB cap is generous (~30 minutes of 128kbps mp3) and aligns with PRD §6.1's "~3 audio recordings per teacher per semester" baseline. Streaming download for huge files deferred — V1 walking-skeleton flags `unprocessable` for >25MB; teacher trims in audio editor first.
+- **Files**: `backend/app/adapters/openrouter_client.py` (audio in `_build_messages`, format mapper), `backend/app/services/llm_service.py` (audio kwargs), `backend/app/adapters/document_extractors/audio.py`, `backend/app/adapters/document_extractors/__init__.py` (registry), `backend/app/services/processing_pipeline.py` (AUDIO_MIMES + audio prompt + transcript artifact_type), `backend/tests/integration/test_audio_pipeline.py`, `backend/tests/integration/test_llm_service.py` + `test_processing_pipeline.py` (FakeOpenRouter signatures)
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-17 Implementation Phase 9 — vision tier (image extractor + multimodal LLM)
 - **Decision**: Add image processing via the vision_cheap tier:
   (a) `OpenRouterClient.chat` extended with optional `image_bytes` + `image_mime` kwargs. Multimodal `messages` payload constructed via `_build_messages`: text-only → simple `{role:user, content:str}`; with image → `content` is a parts list (text part + `image_url` data URL with base64-inline image). Stays under chat completions API (no streaming or audio yet).

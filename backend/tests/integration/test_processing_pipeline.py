@@ -45,6 +45,8 @@ class FakeOpenRouter:
         timeout: float = 60.0,
         image_bytes: bytes | None = None,
         image_mime: str | None = None,
+        audio_bytes: bytes | None = None,
+        audio_mime: str | None = None,
     ) -> ChatResult:
         self.last_prompt = prompt
         return ChatResult(

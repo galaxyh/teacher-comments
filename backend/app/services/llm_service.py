@@ -90,6 +90,8 @@ class LLMService:
         purpose: str,
         image_bytes: bytes | None = None,
         image_mime: str | None = None,
+        audio_bytes: bytes | None = None,
+        audio_mime: str | None = None,
         max_output_tokens: int = 1024,
         retry: int = 3,
     ) -> LLMCallResult:
@@ -138,6 +140,8 @@ class LLMService:
             anonymized_prompt=anon_result.anonymized_text,
             image_bytes=image_bytes,
             image_mime=image_mime,
+            audio_bytes=audio_bytes,
+            audio_mime=audio_mime,
             max_output_tokens=max_output_tokens,
             retry=retry,
         )
@@ -179,6 +183,8 @@ class LLMService:
         retry: int,
         image_bytes: bytes | None = None,
         image_mime: str | None = None,
+        audio_bytes: bytes | None = None,
+        audio_mime: str | None = None,
     ) -> ChatResult:
         """Exponential backoff: 2s, 6s, 18s. Re-raises on retry exhaustion."""
         last_exc: Exception | None = None
@@ -189,6 +195,8 @@ class LLMService:
                     prompt=anonymized_prompt,
                     image_bytes=image_bytes,
                     image_mime=image_mime,
+                    audio_bytes=audio_bytes,
+                    audio_mime=audio_mime,
                     max_output_tokens=max_output_tokens,
                 )
             except (LLMRateLimitError, LLMTimeoutError) as exc:

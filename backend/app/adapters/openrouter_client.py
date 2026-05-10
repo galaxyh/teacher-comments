@@ -54,6 +54,8 @@ class OpenRouterClient:
         prompt: str,
         image_bytes: bytes | None = None,
         image_mime: str | None = None,
+        audio_bytes: bytes | None = None,
+        audio_mime: str | None = None,
         max_output_tokens: int = 1024,
         temperature: float = 0.7,
         timeout: float = 60.0,
@@ -70,7 +72,13 @@ class OpenRouterClient:
             # bug. Catch at the boundary so it's clear where to look.
             raise ValueError("model_id is empty — Settings.llm_tier_* misconfigured")
 
-        messages = self._build_messages(prompt=prompt, image_bytes=image_bytes, image_mime=image_mime)
+        messages = self._build_messages(
+            prompt=prompt,
+            image_bytes=image_bytes,
+            image_mime=image_mime,
+            audio_bytes=audio_bytes,
+            audio_mime=audio_mime,
+        )
 
         try:
             resp = await self._client.chat.completions.create(
@@ -115,28 +123,41 @@ class OpenRouterClient:
 
     @staticmethod
     def _build_messages(
-        *, prompt: str, image_bytes: bytes | None, image_mime: str | None
+        *,
+        prompt: str,
+        image_bytes: bytes | None,
+        image_mime: str | None,
+        audio_bytes: bytes | None = None,
+        audio_mime: str | None = None,
     ) -> list[dict]:
         """Construct OpenAI/OpenRouter chat-completions message format.
 
-        Plain text → simple `{role: user, content: "..."}`. With an image,
-        `content` becomes a list of parts (text + image_url with data URL).
+        Plain text → simple `{role: user, content: "..."}`. With an image or
+        audio attachment, `content` becomes a list of parts (text + image_url /
+        input_audio with data URL). Both image + audio MAY be present in a
+        single call (V1 doesn't currently combine them, but the message format
+        permits it).
         """
-        if image_bytes is None:
+        if image_bytes is None and audio_bytes is None:
             return [{"role": "user", "content": prompt}]
 
-        mime = image_mime or "image/jpeg"
-        b64 = base64.b64encode(image_bytes).decode("ascii")
-        data_url = f"data:{mime};base64,{b64}"
-        return [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                ],
-            }
-        ]
+        parts: list[dict] = [{"type": "text", "text": prompt}]
+        if image_bytes is not None:
+            mime = image_mime or "image/jpeg"
+            b64 = base64.b64encode(image_bytes).decode("ascii")
+            parts.append(
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+            )
+        if audio_bytes is not None:
+            # OpenAI / OpenRouter audio-input format — `input_audio` with data
+            # base64 + format. Format is "mp3" / "wav" etc. derived from MIME.
+            fmt = _audio_format_from_mime(audio_mime or "audio/mpeg")
+            b64 = base64.b64encode(audio_bytes).decode("ascii")
+            parts.append(
+                {"type": "input_audio", "input_audio": {"data": b64, "format": fmt}}
+            )
+
+        return [{"role": "user", "content": parts}]
 
     @staticmethod
     def _classify_status(exc: Exception) -> int | None:
@@ -157,6 +178,22 @@ PRICING_USD_PER_1M_TOKENS: dict[str, tuple[Decimal, Decimal]] = {
     # model_id: (input_per_1M, output_per_1M)
     "google/gemini-2.5-flash-lite": (Decimal("0.10"), Decimal("0.40")),
 }
+
+
+def _audio_format_from_mime(mime: str) -> str:
+    """Map MIME → OpenAI audio `format` field (`mp3` / `wav` / `m4a` / ...)."""
+    return {
+        "audio/mpeg": "mp3",
+        "audio/mp3": "mp3",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/mp4": "m4a",
+        "audio/m4a": "m4a",
+        "audio/x-m4a": "m4a",
+        "audio/webm": "webm",
+        "audio/ogg": "ogg",
+        "audio/flac": "flac",
+    }.get(mime.lower(), "mp3")
 
 
 def _calculate_cost(*, model_id: str, input_tokens: int, output_tokens: int) -> Decimal:
