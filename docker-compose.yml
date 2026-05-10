@@ -1,0 +1,33 @@
+# V1 deployment per D15 / ARCH-001 §5.1
+# TLS termination is external (Caddy / Cloudflare / nginx in front).
+
+services:
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: teacher-comments:dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # SQLite DB + WAL files persisted across container restarts
+      - ./data:/app/data
+      # Audio cache (auto-cleaned by app); separate volume for size monitoring
+      - ./tmp:/app/tmp
+    environment:
+      # Sensitive — keep in .env (gitignored). docker-compose loads .env automatically.
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/teacher.db
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:8000}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY}
+      - OAUTH_TOKEN_ENCRYPTION_KEY=${OAUTH_TOKEN_ENCRYPTION_KEY}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

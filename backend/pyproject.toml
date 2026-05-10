@@ -1,0 +1,135 @@
+[project]
+name = "teacher-comments-backend"
+version = "0.1.0"
+description = "Teacher comments system — FastAPI backend (per docs/PRD.md v0.2, docs/ARCH-001-architecture.md)"
+requires-python = ">=3.11"
+authors = [{ name = "Steven Chen", email = "steven@chtsecurity.com" }]
+license = { text = "Proprietary" }
+
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "python-multipart>=0.0.12",
+    "itsdangerous>=2.2.0",                # session cookie signing
+
+    # ORM / DB (D16: SQLite + WAL + aiosqlite)
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.14.0",
+
+    # Config / validation
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+
+    # OAuth / Google APIs (D5: drive.readonly only)
+    "authlib>=1.3.2",
+    "google-api-python-client>=2.149.0",
+    "google-auth>=2.36.0",
+    "google-auth-httplib2>=0.2.0",
+
+    # LLM (D8/D9: OpenRouter via openai SDK)
+    "openai>=1.55.0",
+    "httpx>=0.28.0",
+
+    # Document extractors (per ARCH-001 §2.1 adapters/document_extractors/)
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "pypdf>=5.1.0",
+    "pillow>=11.0.0",                     # image handling
+
+    # Crypto (PII + OAuth token encryption per ARCH-001 §8.3)
+    "cryptography>=43.0.3",
+
+    # Logging
+    "structlog>=24.4.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",                      # FastAPI TestClient
+    "import-linter>=2.1.0",               # enforce ARCH-001 §2.1 layer rules
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ──────────────────────────────────────────────────────────────────────
+# Tooling configuration
+# ──────────────────────────────────────────────────────────────────────
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "RET", "SIM", "PT"]
+ignore = [
+    "E501",     # line length handled by formatter
+    "S101",     # asserts allowed in tests
+    "B008",     # FastAPI uses Depends() at default — needed pattern
+]
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]     # test fixtures may use weak randomness / fake secrets
+"alembic/**" = ["E402"]                   # Alembic env imports after path setup
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["alembic/versions/.*"]
+
+[[tool.mypy.overrides]]
+module = ["googleapiclient.*", "google_auth_httplib2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+markers = [
+    "unit: fast tests with no IO",
+    "integration: requires DB / fakes external APIs",
+    "e2e: full stack with real DB and mocked LLM",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["alembic/*", "tests/*"]
+
+[tool.coverage.report]
+fail_under = 80                           # per TDD-001 §X coverage gate
+show_missing = true
+skip_covered = true
+
+# Layer rules from ARCH-001 §2.1 — enforce via import-linter
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "Routers cannot import models or adapters directly"
+type = "forbidden"
+source_modules = ["app.routers"]
+forbidden_modules = ["app.models", "app.adapters"]
+
+[[tool.importlinter.contracts]]
+name = "Adapters can only import core and external libs"
+type = "forbidden"
+source_modules = ["app.adapters"]
+forbidden_modules = ["app.routers", "app.services", "app.models", "app.schemas", "app.db"]
+
+[[tool.importlinter.contracts]]
+name = "Models cannot import services or routers"
+type = "forbidden"
+source_modules = ["app.models"]
+forbidden_modules = ["app.routers", "app.services", "app.adapters"]

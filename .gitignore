@@ -19,3 +19,31 @@
 __pycache__/
 *.pyc
 *.pyo
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- Backend runtime data (per ARCH-001 §5.1: SQLite DB + WAL + audio cache) ---
+backend/data/
+backend/tmp/
+
+# --- Env files (contain secrets) ---
+.env
+.env.local
+backend/.env
+backend/.env.local
+
+# --- Frontend ---
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
