@@ -29,9 +29,9 @@ PII_TYPES = (
 class PIIMapping(Base):
     __tablename__ = "pii_mapping"
     __table_args__ = (
-        UniqueConstraint("teacher_id", "pseudonym", name="uq_pii_pseudonym"),
-        # `lookup_hash` makes the constraint enforceable under random-nonce AES-GCM
-        # (per migration 20260510_0002 / D-2026-05-10-08).
+        # NOTE: `(teacher_id, pseudonym)` is intentionally NOT unique — manual aliases
+        # added via D13 PII Min UI may share a pseudonym (multiple spellings of the
+        # same name → same S001). Uniqueness is enforced on `lookup_hash` below.
         UniqueConstraint(
             "teacher_id", "pii_type", "lookup_hash", name="uq_pii_lookup"
         ),

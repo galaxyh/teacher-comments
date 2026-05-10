@@ -102,6 +102,26 @@ export interface BatchEvent {
   last_event: { drive_file_id: string; ok: boolean; reason: string | null } | null;
 }
 
+export type PIIType =
+  | 'student_name'
+  | 'student_id'
+  | 'parent_name'
+  | 'phone'
+  | 'email'
+  | 'address'
+  | 'other_name'
+  | 'other';
+
+export interface PIIMappingRow {
+  id: string;
+  pseudonym: string;
+  pii_type: string;
+  display_name: string | null;
+  original_value: string | null;
+  source: string;
+  created_at: string | null;
+}
+
 export interface EvaluationResponse {
   id: string;
   teacher_id: string;
@@ -238,4 +258,49 @@ export const api = {
       body: JSON.stringify({ mapping }),
     });
   },
+
+  // ── PII Min UI (D13) ──────────────────────────────────────────
+
+  async listPIIMappings(): Promise<PIIMappingRow[]> {
+    return unwrap<PIIMappingRow[]>(await baseFetch('/pii/mappings'));
+  },
+
+  async updatePIIDisplayName(pseudonym: string, displayName: string | null): Promise<void> {
+    await baseFetch(`/pii/mappings/${encodeURIComponent(pseudonym)}/display-name`, {
+      method: 'PUT',
+      body: JSON.stringify({ display_name: displayName ?? '' }),
+    });
+  },
+
+  async addManualPIIMapping(input: {
+    pseudonym: string;
+    original_value: string;
+    pii_type: PIIType;
+  }): Promise<PIIMappingRow> {
+    return unwrap<PIIMappingRow>(
+      await baseFetch('/pii/mappings', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+    );
+  },
+
+  // ── Settings ───────────────────────────────────────────────────
+
+  async getSettings(): Promise<SettingsResponse> {
+    return unwrap<SettingsResponse>(await baseFetch('/settings'));
+  },
+
+  async updateTierConfig(overrides: Record<string, string>): Promise<void> {
+    await baseFetch('/settings/llm-tier', {
+      method: 'PUT',
+      body: JSON.stringify({ overrides }),
+    });
+  },
 };
+
+export interface SettingsResponse {
+  llm_tier_config: Record<string, string>;
+  monthly_cost_usd: number;
+  monthly_budget_usd: number;
+}

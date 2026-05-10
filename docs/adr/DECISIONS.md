@@ -17,6 +17,28 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-20 Implementation Phase 12 — Settings page (LLM tier overrides + budget gauge)
+- **Decision**: Per-teacher LLM tier override + monthly budget visibility per PRD §5 / D8:
+  (a) `app/services/settings_service.py` — `get_view(teacher_id)` returns the effective tier→model map (process default overlaid by `teacher.llm_tier_config` JSON), plus the current calendar-month sum of `llm_call_audit.cost_usd` and the process-wide budget cap. `set_tier_overrides` validates tier names against the four-tier set and persists; empty string clears that tier's override.
+  (b) `app/routers/settings.py` — `GET /settings` (returns config + monthly cost + budget) and `PUT /settings/llm-tier` (replace overrides). Unknown tier → 400.
+  (c) Frontend `/settings` page: budget progress bar (warn-coloured at >100%), per-tier text input pre-filled with effective model ID, save button. Uses the convention that "value matches default" → backend treats as cleared.
+  (d) Logout button moved here from home page.
+  Tests: 6 new — defaults, set override, clear override, unknown tier 400, anonymous 401, monthly cost aggregation.
+- **Rationale**: Per-tier override at runtime (no env var change) is what D8 demands — teachers can shift evaluation_quality to Pro for one student without restarting the container. The "type the model ID" field is intentionally unconstrained: framework-gotcha.md "OpenRouter Model Names Don't Always Match Documentation" — better to let the teacher copy-paste from OpenRouter dashboard than maintain a hardcoded allowed-list that goes stale. Budget cap stays process-wide for V1; per-teacher budget needs a DB column + accounting service that's V2 scope.
+- **Files**: `backend/app/services/settings_service.py`, `backend/app/schemas/settings.py`, `backend/app/routers/settings.py`, `backend/app/main.py` (wired router), `backend/tests/integration/test_settings.py`, `frontend/src/lib/api.ts` (settings calls), `frontend/src/app/settings/page.tsx`
+- **Commit**: _fill after commit_
+
+### D-2026-05-10-19 Implementation Phase 11 — PII Min UI (D13)
+- **Decision**: Surface PII mapping management to the teacher per D13:
+  (a) `PIIAnonymizer.list_mappings(teacher_id)` returns rows with decrypted `original_value` so the UI can show "PH001 ↔ 0912345678". `update_display_name` sets/clears a per-row override. `add_manual_mapping` inserts an alias row sharing the existing pseudonym (e.g., `阿明 → S001`).
+  (b) Schema migration `20260510_0003`: drops `UNIQUE (teacher_id, pseudonym)` (replaced by alias-permitting design). The `(teacher_id, pii_type, lookup_hash)` constraint from 0002 still prevents duplicate plaintexts.
+  (c) `app/routers/pii.py` — `GET /pii/mappings`, `PUT /pii/mappings/{pseudonym}/display-name`, `POST /pii/mappings`. Anonymous → 401; unknown pseudonym → 404 / 400 depending on context.
+  (d) Frontend `/pii` page: list table with inline edit-display-name, alias add form below.
+  Tests: 7 new — list returns seeded rows with decrypted originals, display-name set/clear, unknown pseudonym 404, manual-mapping happy path, manual mapping on unknown pseudonym 400, anonymous 401.
+- **Rationale**: V1 UI skips regex editor (D13 explicitly defers to V2) — teachers can fix specific values via aliases. Discovery of the schema bug ("uq_pii_pseudonym blocks aliases") happened during Phase 11 implementation, was fixed via migration 0003 in same commit; this is the kind of mid-phase schema evolution `engineering-process.md` "OAQ Defer Don't Reverse" applies to (raise + fix in next layer rather than retroactively edit Phase 1's initial migration).
+- **Files**: `backend/alembic/versions/20260510_0003_drop_pii_pseudonym_unique.py`, `backend/app/models/pii_mapping.py` (drop UQ), `backend/app/services/pii_anonymizer.py` (3 new methods), `backend/app/schemas/pii.py`, `backend/app/routers/pii.py`, `backend/app/main.py` (wired router), `backend/tests/integration/test_pii_min_ui.py`, `frontend/src/lib/api.ts` (PII calls), `frontend/src/app/pii/page.tsx`, `frontend/src/app/page.tsx` (added cards for /pii + /settings)
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-18 Implementation Phase 10 — audio STT tier
 - **Decision**: Add audio transcription via the `audio_standard` tier (D10 / D11):
   (a) `OpenRouterClient.chat` extended with `audio_bytes` + `audio_mime`. Audio is included as an `input_audio` content part with `format` derived from MIME (mp3/wav/m4a/webm/ogg/flac). Co-exists with `image_bytes`.

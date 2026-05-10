@@ -202,6 +202,134 @@ class PIIAnonymizer:
 
         return pseudonym_re.sub(repl, text)
 
+    # ── PII Min UI surface (D13) ────────────────────────────────────
+
+    async def list_mappings(
+        self, *, teacher_id: str
+    ) -> list[dict]:
+        """Return per-teacher mappings as plain dicts (NOT including ciphertext).
+
+        Each row: `{pseudonym, pii_type, display_name, source, created_at,
+        original_value}`. `original_value` is decrypted on read so the UI can
+        show the teacher what's behind a pseudonym; teacher's screen is the
+        only place this re-appears.
+        """
+        async with get_sessionmaker()() as session:
+            rows = (
+                await session.execute(
+                    select(PIIMapping).where(PIIMapping.teacher_id == teacher_id)
+                )
+            ).scalars().all()
+
+        cipher = self._cipher or get_pii_cipher()
+        out: list[dict] = []
+        for row in rows:
+            try:
+                original = cipher.decrypt_str(row.original_value_encrypted)
+            except Exception:  # noqa: BLE001 — surface as None instead of crashing
+                original = None
+            out.append({
+                "id": row.id,
+                "pseudonym": row.pseudonym,
+                "pii_type": row.pii_type,
+                "display_name": row.display_name,
+                "original_value": original,
+                "source": row.source,
+                "created_at": row.created_at,
+            })
+        # Sort numerically within prefix
+        out.sort(key=lambda r: (r["pii_type"], r["pseudonym"]))
+        return out
+
+    async def update_display_name(
+        self, *, teacher_id: str, pseudonym: str, display_name: str | None
+    ) -> None:
+        """Set/clear the display_name override for a pseudonym.
+
+        `display_name=None` clears the override → restore() falls back to the
+        decrypted original value. Raises ValueError if pseudonym doesn't exist
+        for this teacher.
+        """
+        async def update(session: AsyncSession) -> None:
+            row = (
+                await session.execute(
+                    select(PIIMapping).where(
+                        PIIMapping.teacher_id == teacher_id,
+                        PIIMapping.pseudonym == pseudonym,
+                    )
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                raise ValueError(f"No PII mapping with pseudonym {pseudonym!r}")
+            row.display_name = display_name
+        await self._queue.submit(update)
+        # Invalidate rev cache for this pseudonym
+        self._rev_cache.pop((teacher_id, pseudonym), None)
+
+    async def add_manual_mapping(
+        self,
+        *,
+        teacher_id: str,
+        original_value: str,
+        pseudonym: str,
+        pii_type: PIIType,
+    ) -> dict:
+        """Teacher adds an alias mapping (e.g., '阿明' → S001).
+
+        Constraints:
+        - `pseudonym` MUST already exist for the teacher (so the alias maps to
+          something the system already knows).
+        - `(teacher, pii_type, lookup_hash)` UNIQUE — duplicate raises.
+
+        Returns the inserted row as the same dict shape as `list_mappings`.
+        """
+        # Validate pseudonym exists
+        async with get_sessionmaker()() as session:
+            target = (
+                await session.execute(
+                    select(PIIMapping).where(
+                        PIIMapping.teacher_id == teacher_id,
+                        PIIMapping.pseudonym == pseudonym,
+                    )
+                )
+            ).scalar_one_or_none()
+        if target is None:
+            raise ValueError(
+                f"Pseudonym {pseudonym!r} does not exist; create it via auto-detection first"
+            )
+
+        h = self._hash_value(original_value)
+        cipher = self._cipher or get_pii_cipher()
+        encrypted = cipher.encrypt_str(original_value)
+        new_id = gen_uuid()
+
+        async def insert(session: AsyncSession) -> None:
+            session.add(
+                PIIMapping(
+                    id=new_id,
+                    teacher_id=teacher_id,
+                    pii_type=pii_type.value,
+                    lookup_hash=h,
+                    original_value_encrypted=encrypted,
+                    pseudonym=pseudonym,  # alias intentionally shares the same pseudonym
+                    source="manual",
+                )
+            )
+        await self._queue.submit(insert)
+
+        # Seed cache so subsequent anonymise calls pick up the alias
+        self._fwd_cache[(teacher_id, h)] = (pseudonym, pii_type)
+
+        return {
+            "id": new_id,
+            "pseudonym": pseudonym,
+            "pii_type": pii_type.value,
+            "display_name": target.display_name,
+            "original_value": original_value,
+            "source": "manual",
+            "created_at": None,
+        }
+
     # ── Internals ───────────────────────────────────────────────────
 
     @dataclass(frozen=True)

@@ -87,6 +87,12 @@ export default function HomePage() {
           body="選擇學期與學生，撰寫評價種子，由 AI 生成初稿。"
           href="/evaluation/new"
         />
+        <Card
+          title="PII 對應"
+          body="檢視所有 pseudonym、改顯示名、加別名。"
+          href="/pii"
+        />
+        <Card title="設定" body="LLM tier、預算上限、帳號管理。" href="/settings" />
       </section>
 
       <section>
