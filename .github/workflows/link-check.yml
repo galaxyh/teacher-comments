@@ -105,7 +105,7 @@ jobs:
         # - lychee found errors (exit_code != 0)
         # - Triggered by schedule (not manual workflow_dispatch)
         if: env.lychee_exit_code != '0' && github.event_name == 'schedule'
-        uses: peter-evans/create-issue-from-file@v5
+        uses: peter-evans/create-issue-from-file@v6
         with:
           title: 'Broken links detected in documentation (weekly check)'
           content-filepath: ./lychee-report.md
