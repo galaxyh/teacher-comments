@@ -17,6 +17,18 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-13 Implementation Phase 5alt — BatchWorker + SSE progress
+- **Decision**: Add concurrent batch processing with live progress via Server-Sent Events:
+  (a) `app/services/sse_publisher.py` — minimal in-process pub/sub keyed by topic. Subscribers attached via async generator (`subscribe(topic)`); publishers broadcast non-blocking (drop on full queue rather than stall). Late subscribers miss earlier events; combine with `/batch/{id}/status` for snapshot.
+  (b) `app/services/batch_worker.py` — `start_job` creates `batch_job` row, picks all `drive_file` rows for `(teacher, semester)` whose artifact state is `null`/`pending`/`reprocess_pending`, fans out as `asyncio.create_task` with `Semaphore(BATCH_WORKER_CONCURRENCY)` (default 4). Failure mapping: `UnsupportedFormat`/`DocumentExtraction` → `state='unprocessable'` (terminal, D-2026-05-10-04); `LLMRateLimit`/`Timeout`/`DriveError` → `state='failed'` + `retry_count++`; `LLMQuotaExhausted` → pause batch (resets to `pending`, returns `failed` status). `recover_stale_jobs` resets any `state='processing'` rows on lifespan startup (interrupted-process safety).
+  (c) Routes: `POST /batch/start` (202 + batch_job_id), `POST /batch/{id}/cancel` (soft cancel via `asyncio.Event`), `GET /batch/{id}/status` (snapshot for polling fallback), `GET /batch/{id}/events` (SSE stream — `text/event-stream` with leading `retry: 5000` hint, terminates on `state ∈ {completed, failed, cancelled}`).
+  (d) `system_event` audit on `batch_started` / `batch_completed` / `batch_failed`.
+  (e) Tests (10 new, full suite 91 passed): start_job → 3 files all processed; terminal failure → state='unprocessable'; rate limit → state='failed'+retry_count=1; recover_stale_jobs resets processing→pending; SSE pub/sub broadcasts; router 202/status poll/anonymous 401/unknown batch 404.
+  Out of scope (Phase 5alt-2): auto-retry inside worker (currently leaves `failed` for manual retry), reprocess_pending overwrite/keep prompt UI flow, multi-batch queueing.
+- **Rationale**: `asyncio.Semaphore` chosen over `arq`/Redis-backed worker pool because V1 single-process invariant (Axis 4 / OAQ-2 confirmed) — adding Redis would violate "zero external runtime deps." Concurrency default `4` matches ARCH-001 §7.1 worker-sizing analysis (Drive 10/s + OpenRouter 1/s sustained). SSE chosen over WebSocket because batch progress is server-push-only — WS bidirectional is overkill, SSE works behind any HTTP-only proxy and reconnects automatically. Built without `sse-starlette` dep — protocol is trivial (`data: {...}\n\n`) and walking-skeleton doesn't need that lib's graceful-disconnect refinements yet.
+- **Files**: `backend/app/services/sse_publisher.py`, `backend/app/services/batch_worker.py`, `backend/app/schemas/batch.py`, `backend/app/routers/batch.py`, `backend/app/main.py` (wired router), `backend/tests/conftest.py` (added SSE cache reset), `backend/tests/integration/test_batch_worker.py`
+- **Commit**: `4425ff5`
+
 ### D-2026-05-10-12 Implementation Phase 6 — frontend Next.js scaffold + login + evaluation editor
 - **Decision**: Bring up V1 frontend scaffold (Next.js 15 / React 19 / TypeScript 5.7 / Tailwind 3.4):
   (a) `frontend/package.json` — pnpm-managed (pinned to v9 — pnpm 11+ requires Node 22.13 but the dev env runs Node 20.20.2; ARCH-001 §2.2 states "pnpm preferred for smaller lockfile" so we stay on pnpm). Build target: `next build` produces `output: 'standalone'` (per OAQ-3 / DESIGN-001 §2.3 single-container deploy plan).
