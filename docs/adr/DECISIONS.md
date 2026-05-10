@@ -30,7 +30,7 @@
   Tests: 5 new backend (test_onboarding.py — happy path / system_event recorded / 401 anonymous / 422 empty version / idempotent), full suite 107 passed.
 - **Rationale**: `attest` shipped in `AuthService` (not its own service) because attestation is an auth-flow extension — the audit trail is OAuth-adjacent, the `teacher` row carries the state. Frontend wizard built as a single page with step-state machine (rather than nested routes) so abandoning + returning lands the user at the same step seamlessly via the bootstrap effect — refresh-resume costs zero session state on the server.
 - **Files**: `backend/app/services/auth_service.py` (added `attest`), `backend/app/routers/drive.py` (added `POST /onboarding/attest`), `backend/tests/integration/test_onboarding.py`, `frontend/src/lib/api.ts` (added Drive + onboarding calls), `frontend/src/app/onboarding/page.tsx`, `frontend/src/app/page.tsx` (onboarding banner)
-- **Commit**: _fill after commit_
+- **Commit**: `414e127`
 
 ### D-2026-05-10-15 Implementation Phase 7 — batch dashboard UI + SSE wiring
 - **Decision**: Add `/batch` dashboard route to frontend with live progress via EventSource:
