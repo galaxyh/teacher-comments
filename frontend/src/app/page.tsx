@@ -1,0 +1,98 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ApiError, api, type MeResponse } from '@/lib/api';
+
+export default function HomePage() {
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await api.me();
+        setMe(data);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 401) {
+          // Anonymous — render the login CTA
+          setMe(null);
+        } else {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  if (loading) {
+    return <p className="text-ink-muted">載入中…</p>;
+  }
+
+  if (error) {
+    return (
+      <p className="text-warn">
+        無法連線後端（{error}）。請確認 backend 正在 :8000 執行。
+      </p>
+    );
+  }
+
+  if (me === null) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-semibold">歡迎</h1>
+        <p className="text-ink-muted">
+          請使用 Google 帳號登入以開始使用。
+        </p>
+        <a
+          href={api.loginUrl('/')}
+          className="inline-block rounded-md bg-accent px-4 py-2 text-white shadow-sm hover:opacity-90"
+        >
+          使用 Google 登入
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-md border border-stone-200 bg-white p-4">
+        <h1 className="text-xl font-semibold">已登入：{me.email}</h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          Drive 根目錄：{me.has_drive_root ? '已設定' : '尚未設定'}　·
+          家長同意聲明：{me.has_attested ? '已勾選' : '尚未勾選'}
+        </p>
+      </div>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">評語產生</h2>
+        <p className="text-sm text-ink-muted">
+          選擇學期與學生，撰寫評價種子，由 AI 生成初稿。
+        </p>
+        <div className="space-y-2">
+          <Link
+            href="/evaluation/new"
+            className="inline-block rounded-md border border-accent text-accent px-4 py-2 hover:bg-accent hover:text-white"
+          >
+            撰寫新評語 →
+          </Link>
+        </div>
+      </section>
+
+      <section>
+        <button
+          type="button"
+          onClick={async () => {
+            await api.logout();
+            window.location.href = '/';
+          }}
+          className="text-sm text-ink-muted underline hover:text-ink"
+        >
+          登出
+        </button>
+      </section>
+    </div>
+  );
+}
