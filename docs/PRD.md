@@ -909,7 +909,7 @@ graph TB
 | **AC-7** | F-7 | 整合 + chaos | 處理中 kill 服務，重啟後 0 個重複處理、0 個遺漏 |
 | **AC-8** | F-8 | E2E | 教師編輯 → batch 中該檔顯示 reprocess_pending 提示 → 選 [保留] 後 state 回 teacher_edited |
 | **AC-9** | F-9 | E2E + 人工驗證 | 給定 fixture 學生資料，產出評語含 ≥3 個來自素材的具體引用；3 個風格對應產出有可區分的語氣差異（人工抽樣） |
-| **AC-10** | F-10 | E2E | 全 flow（onboarding 含 attestation → 批次 → 編輯 → 評語 → 下載）跑完；Settings 頁所有 5 項可正常顯示與互動 |
+| **AC-10** | F-10 | E2E | 全 flow（onboarding 含 attestation → 批次 → 編輯 → 評語 → 下載）跑完；Settings 頁 6 項（LLM Tier / PII / Folder Mapping / 預算 / Attestation 紀錄 / 帳號）可正常顯示與互動 |
 
 ---
 
