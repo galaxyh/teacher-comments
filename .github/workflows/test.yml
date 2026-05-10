@@ -36,7 +36,7 @@ jobs:
         run: uv run pytest tests/unit -v --cov=app --cov-report=xml --cov-report=term
         working-directory: ./backend
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         if: always()
         with:
           files: ./backend/coverage.xml
