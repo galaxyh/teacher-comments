@@ -244,7 +244,8 @@ CREATE TABLE processed_artifact (
   artifact_type           TEXT NOT NULL CHECK (artifact_type IN ('markdown_summary', 'transcript')),
   state                   TEXT NOT NULL CHECK (state IN
                             ('pending', 'processing', 'processed',
-                             'teacher_edited', 'reprocess_pending', 'failed')),
+                             'teacher_edited', 'reprocess_pending',
+                             'failed', 'unprocessable')),  -- 'unprocessable' added 2026-05-10 per D-2026-05-10-04
   content_markdown        TEXT,
   source_content_hash     TEXT,                                -- 產出時的原檔 hash
   llm_tier                TEXT,                                -- 'summary_cheap' 等
@@ -320,14 +321,35 @@ CREATE TABLE llm_call_audit (
   called_at           TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+-- system_event audit table (added 2026-05-10 per D-2026-05-10-05 / DESIGN-001 §2.5)
+CREATE TABLE system_event (
+  id              TEXT PRIMARY KEY,
+  teacher_id      TEXT REFERENCES teacher(id),         -- nullable for system-only events
+  event_type      TEXT NOT NULL CHECK (event_type IN (
+                    'oauth_login', 'oauth_logout', 'oauth_revoked',
+                    'attestation_signed', 'attestation_invalidated',
+                    'key_rotated', 'schema_migrated',
+                    'batch_started', 'batch_completed', 'batch_failed',
+                    'pii_leakage_detected'
+                  )),
+  details         TEXT,                                -- JSON payload
+  ip_address      TEXT,
+  user_agent      TEXT,
+  created_at      TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 索引建議
 CREATE INDEX idx_drive_file_lookup ON drive_file (teacher_id, semester_label, student_pseudo_id);
 CREATE INDEX idx_drive_file_hash ON drive_file (content_hash);
 CREATE INDEX idx_artifact_state ON processed_artifact (state);
 CREATE INDEX idx_audit_time ON llm_call_audit (teacher_id, called_at);
+CREATE INDEX idx_system_event_teacher_time ON system_event (teacher_id, created_at);
+CREATE INDEX idx_system_event_type ON system_event (event_type);
 ```
 
 ### 4.3 檔案處理狀態機
+
+> **更新 2026-05-10（D-2026-05-10-04 / DESIGN-001 §2.1）**：新增 `unprocessable` 終端狀態，與 `failed`（可重試）區分。詳見 DESIGN-001。
 
 每個 `(drive_file, artifact_type)` 對應一個獨立狀態：
 
@@ -336,8 +358,10 @@ stateDiagram-v2
     [*] --> pending: 索引時建立
     pending --> processing: batch worker pick up
     processing --> processed: LLM 成功
-    processing --> failed: LLM 失敗（達 retry 上限）
-    failed --> processing: 教師手動重試
+    processing --> failed: 可重試失敗（rate limit / timeout / API 5xx）
+    processing --> unprocessable: 終端失敗（encrypted / corrupt / unsupported / quota_daily）
+    failed --> processing: 教師手動重試 OR 自動重試（≤3 次 exponential backoff）
+    unprocessable --> processing: 教師手動重試（強制；UI 警告罕見有效）
     processed --> teacher_edited: 教師於 UI 編輯回存
     teacher_edited --> reprocess_pending: 偵測到原檔 hash 變動
     processed --> reprocess_pending: 偵測到原檔 hash 變動（無編輯版本）
@@ -352,6 +376,7 @@ stateDiagram-v2
 - **狀態轉換寫入交易**（SQLite WAL mode 支援並行讀，寫入序列化）— 確保中斷恢復時不會出現孤兒
 - **`stale-processing-recovery`** — 啟動時掃描 `state='processing'` 且 `updated_at > 5min ago` 的記錄，重置回 `pending`
 - **SQLite write serialization**：所有 worker 共用一個 `asyncio.Queue` 把 DB write 串行化，避免 SQLite writer-lock 競爭（lessons-learned `database.md` 模式）
+- **Terminal vs retriable 分離**（D-2026-05-10-04 / DESIGN-001 §2.1）：encrypted / corrupt / unsupported_format / daily_quota_exhausted 等永久失敗 → `unprocessable`，**不自動重試**；rate_limit / timeout / 5xx 等暫態失敗 → `failed`，自動重試 ≤3 次後若仍失敗才停留於 `failed`
 
 ### 4.4 PII 匿名化映射表設計
 
