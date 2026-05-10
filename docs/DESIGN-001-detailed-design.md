@@ -56,6 +56,37 @@ Concrete enough that BDD/TDD can write `Given the LLMService receives ...` with 
 
 **Updated state machine** (replaces PRD §4.3):
 
+**易讀說明 — 加入 `unprocessable` 後的轉移表**：
+
+| From | Trigger | To | 自動重試？ |
+|------|---------|----|-----------|
+| `(initial)` | 索引時建立 | `pending` | — |
+| `pending` | batch worker pick up | `processing` | — |
+| `processing` | LLM 成功 | `processed` | — |
+| `processing` | rate_limit / timeout / 5xx | `failed` | ✓ ≤3 次 exponential backoff (10s/60s/300s) |
+| `processing` | encrypted / corrupt / unsupported / quota_daily | `unprocessable` | **✗（從不自動重試）** |
+| `failed` | 教師手動重試 OR 自動重試 | `processing` | — |
+| `unprocessable` | 教師手動重試（強制；UI 警告罕見有效） | `processing` | ✗ 僅手動 |
+| `processed` | 教師於 UI 編輯回存 | `teacher_edited` | — |
+| `teacher_edited` | 偵測到原檔 hash 變動 | `reprocess_pending` | — |
+| `processed` | 偵測到原檔 hash 變動 | `reprocess_pending` | — |
+| `reprocess_pending` | 教師同意覆蓋 | `processing` | — |
+| `reprocess_pending` | 教師拒絕（保留現有編輯） | `teacher_edited` | — |
+| `reprocess_pending` | 教師拒絕（無編輯版本） | `processed` | — |
+
+**`failed` 與 `unprocessable` 的差異**（D-2026-05-10-04 重點）：
+
+| 特性 | `failed` | `unprocessable` |
+|------|---------|-----------------|
+| 性質 | Soft-terminal（可重試） | Hard-terminal（除非教師強制） |
+| 自動 retry | ✓ exponential backoff ≤3 次 | ✗ 從不 |
+| Bulk retry 預設包含 | ✓ | ✗ |
+| UI 顯示 | `[重試]` 按鈕（default 動作） | `[強制重試]` 在 disclosure 後（小） |
+| 顏色 | 紅 `#b03030` | 暗紅 `#7a1f1f`（更終端） |
+| 典型原因 | API 5xx, timeout, rate limit | encrypted, corrupt, unsupported format, daily quota |
+
+**Mermaid（機器精確版）**：
+
 ```mermaid
 stateDiagram-v2
     [*] --> pending: 索引時建立

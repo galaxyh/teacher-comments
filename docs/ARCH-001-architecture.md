@@ -184,6 +184,53 @@ Build pipeline regenerates `api.ts` on backend schema change. CI fails if `api.t
 
 ### 3.1 Onboarding flow (OAuth → Attestation → Drive root → Folder mapping)
 
+**易讀說明 — 4 個階段**：
+
+**A. OAuth handshake**（步驟 1-11）
+1. Teacher → Frontend：按 [使用 Google 登入]
+2. Frontend → Backend：`GET /auth/login`
+3. Backend → Google OAuth：redirect 到同意畫面（scope: `drive.readonly`）
+4. Google → Teacher：顯示 OAuth 同意畫面
+5. Teacher → Google：核准
+6. Google → Backend：`GET /auth/callback?code=...`
+7. Backend → Google：`code` 換 token
+8. Google → Backend：`access_token` + `refresh_token`
+9. Backend：`encrypt(refresh_token, OAUTH_TOKEN_ENCRYPTION_KEY)`
+10. Backend → DB：`UPSERT teacher (google_sub, email, encrypted_token)`
+11. Backend → Frontend：設 session cookie + redirect 至 `/onboarding/attestation`
+
+**B. Attestation 同意聲明**（步驟 12-16，per D17）
+12. Frontend → Teacher：顯示同意聲明 dialog
+13. Teacher → Frontend：勾選同意 + 送出
+14. Frontend → Backend：`POST /onboarding/attest {version: "v1"}`
+15. Backend → DB：`UPDATE teacher SET consent_attestation_at, consent_attestation_version`
+16. Backend → Frontend：200 OK
+
+**C. Drive 根目錄選擇 + 掃描啟動**（步驟 17-25）
+17. Frontend → Backend：`GET /drive/list`（根層）
+18. Backend → Google Drive：`drive.files.list` (folders only, root)
+19. Google Drive → Backend：folder list
+20. Backend → Frontend：tree node JSON
+21. Teacher → Frontend：選擇資料夾 X
+22. Frontend → Backend：`POST /onboarding/drive-root {folder_id: X}`
+23. Backend → DB：`UPDATE teacher SET drive_root_folder_id`
+24. Backend：觸發 initial scan（背景任務）
+25. Backend → Frontend：202 Accepted (`scan_job_id`)
+
+**D. Mapping wizard + scan 完成**（步驟 26-32，per D14）
+- 掃描走 3 層：學期 / 學生 / 三類資料夾
+- 第一個非標準類別資料夾名觸發 wizard
+
+26. Backend → Frontend：SSE event `needs_folder_mapping`
+27. Frontend → Teacher：顯示 mapping wizard
+28. Teacher → Frontend：選擇對應關係
+29. Frontend → Backend：`POST /onboarding/folder-mapping {mapping: {...}}`
+30. Backend → DB：`UPDATE teacher SET folder_mapping`
+31. Backend：用 mapping 恢復掃描
+32. Backend → Frontend：SSE event `scan_complete` → Frontend → Teacher：redirect 至 `/dashboard`
+
+**Mermaid（機器精確版）**：
+
 ```mermaid
 sequenceDiagram
     actor T as Teacher
@@ -236,6 +283,44 @@ sequenceDiagram
 - Scan progress communicated via SSE (Server-Sent Events) — frontend defers connection per `frontend.md` lesson
 
 ### 3.2 Batch processing flow (with edit-conflict prompts)
+
+**易讀說明 — 3 個階段**：
+
+**A. 批次預覽 + 衝突確認**（步驟 1-7）
+1. Teacher → Frontend：按 [處理本學期]
+2. Frontend → Backend：`GET /batch/preview?semester=X`
+3. Backend → DB：`SELECT files WHERE state IN (pending, reprocess_pending)`
+4. DB → Backend：file list
+5. Backend → Frontend：`preview {pending: [...], reprocess_pending: [...]}`
+6. Frontend → Teacher：顯示清單；對 `reprocess_pending` 逐個詢問 [覆蓋] / [保留]
+7. Teacher → Frontend：確認（例：5 個覆蓋、3 個保留）
+
+**B. 啟動批次**（步驟 8-11）
+8. Frontend → Backend：`POST /batch/start {semester: X, decisions: {...}}`
+9. Backend → DB：`INSERT batch_job (status='running', total: 12)`
+10. Backend → BatchWorker：enqueue 12 file tasks
+11. Backend → Frontend：202 + 開啟 SSE `/batch/<id>/events`
+
+**C. 並行處理 loop**（每檔重複；最多 N=4 並行）
+- BatchWorker → DBWriteQueue → DB：`state='processing'`（atomic）
+- BatchWorker → 抽取內容（docx / image / audio）
+- BatchWorker → LLMService：`anonymize(content)` + `call(tier)`
+- LLMService：assert PII boundary（pre-anonymize 後仍含 PII → 拋 PIILeakageError）
+- LLMService → OpenRouter：HTTP POST（**僅匿名化文字**）
+- OpenRouter → LLMService：response
+- LLMService：`restore(response)`
+- LLMService → BatchWorker：artifact text + cost
+- BatchWorker → DBWriteQueue → DB：`state='processed'`、`content_markdown=...`、`cost_usd=...`
+- BatchWorker → Backend → Frontend：SSE event `file_done`
+
+**完成**：
+- BatchWorker → DB：`UPDATE batch_job SET status='completed', total_cost`
+- BatchWorker → Backend → Frontend：SSE event `batch_done`
+- Frontend → Teacher：顯示總結
+
+> 失敗路徑（為清晰省略於圖）：`state='failed'` 含 `failure_reason`，自動 retry 最多 3x（exponential backoff）；終端錯誤（encrypted、unsupported）走 `state='unprocessable'` 不重試 — 詳 DESIGN-001 §6.3。
+
+**Mermaid（機器精確版）**：
 
 ```mermaid
 sequenceDiagram
@@ -290,6 +375,41 @@ sequenceDiagram
 
 ### 3.3 Evaluation generation flow
 
+**易讀說明 — 線性流程**：
+
+| # | Actor | → | Target | Action |
+|---|-------|---|--------|--------|
+| 1 | Teacher | → | Frontend | 進入 `/evaluation/<semester>/<pseudo_id>` |
+| 2 | Frontend | → | Backend | `GET /eval/<semester>/<pseudo_id>/context` |
+| 3 | Backend | → | DB | `SELECT processed_artifact for student` |
+| 4 | DB | → | Backend | artifacts |
+| 5 | Backend | → | Frontend | artifact 摘要（已還原 PII，供顯示） |
+| 6 | Teacher | → | Frontend | 輸入 seed（30-100 字）+ 選風格（formal / encouraging / objective） |
+| 7 | Frontend | → | Backend | `POST /eval/generate {seed, style, semester, pseudo_id}` |
+| 8 | Backend | → | EvalGenerator | `build_prompt(seed, style, artifacts)` |
+| 9 | EvalGenerator | → | PII Anonymizer | `anonymize(prompt)` |
+| 10 | PII Anonymizer | → | EvalGenerator | anonymized prompt |
+| 11 | EvalGenerator | → | LLMService | `call(tier='evaluation_quality', prompt=anonymized)` |
+| 12 | LLMService | → | OpenRouter | HTTP POST |
+| 13 | OpenRouter | → | LLMService | response text |
+| 14 | LLMService | → | PII Anonymizer | `restore(text)` |
+| 15 | PII Anonymizer | → | LLMService | restored text |
+| 16 | LLMService | → | EvalGenerator | text + cost |
+| 17 | EvalGenerator | → | DB | `INSERT semester_evaluation` |
+| 18 | EvalGenerator | → | Backend → Frontend | evaluation |
+| 19 | Frontend | → | Teacher | 顯示在 editor（Markdown preview） |
+| 20 | Teacher | → | Frontend | 編輯 + save |
+| 21 | Frontend | → | Backend | `PUT /eval/<id> {edited_text}` |
+| 22 | Backend | → | DB | `UPDATE semester_evaluation SET edited_text, edited_at` |
+| 23 | Backend | → | Frontend | 200 OK |
+
+**關鍵點**：
+- prompt builder 在 `EvalGenerator` — token 預算管理在這裡，不在 LLMService
+- PII anonymizer 跑兩次：pre-call（步驟 9-10）+ post-call（步驟 14-15），對稱 round-trip
+- 編輯後的文字存於不同欄位（`edited_text` ≠ `generated_text`），保留 audit trail
+
+**Mermaid（機器精確版）**：
+
 ```mermaid
 sequenceDiagram
     actor T as Teacher
@@ -333,6 +453,50 @@ sequenceDiagram
 
 ### 3.4 PII anonymize / restore cycle
 
+**易讀說明 — 對稱 round-trip**：
+
+```
+ServiceCaller.call(tier, raw_text_with_PII)
+   │
+   │ 1. anonymize ────────────────────────┐
+   ▼                                       │
+LLMService                                 │
+   │                                       ▼
+   │ 2. SELECT pii_mapping              PIIAnonymizer
+   │    WHERE teacher_id=X
+   │                                       │
+   │ 3. detect new PII (regex + folder)    │
+   │ 4. (if new) INSERT pii_mapping        │
+   │ 5. substitute raw → anonymized        │
+   │                                       │
+   │◀──────────────── anonymized_text ─────┘
+   │
+   │ 6. assert no_pii_in_anonymized()  ← boundary check（防 anonymizer bug）
+   │
+   │ 7. HTTP POST anonymized_text
+   ▼
+OpenRouter
+   │
+   │ 8. response (含 pseudonyms 如 S001)
+   ▼
+LLMService
+   │ 9. restore ──────────────────────────┐
+   ▼                                       │
+PIIAnonymizer                              │
+   │ 10. SELECT display_name FROM         │
+   │     pii_mapping WHERE pseudonym='S001'│
+   │ 11. substitute pseudonyms → display  │
+   │                                       │
+   │◀──────────── restored_response ───────┘
+   │
+   ▼
+Caller 取得：restored_response + cost + audit_record
+```
+
+**Boundary assertion 是 load-bearing safety net**：步驟 6 的 `no_pii_in_anonymized()` 對 anonymized_text 跑已知 PII regex（台灣電話 / Email / 國民身分證）。命中即拋 `PIILeakageError`，**HTTP POST 不會發生**。這是第二道防線 — 即使 anonymizer 有 bug，PII 仍不會出系統邊界。
+
+**Mermaid（機器精確版）**：
+
 ```mermaid
 sequenceDiagram
     participant Caller as ServiceCaller
@@ -368,6 +532,56 @@ sequenceDiagram
 ## 4. Component Architecture
 
 ### 4.1 Backend component diagram (refines PRD §8)
+
+**易讀說明 — 4 層 + 1 共用 queue**：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ HTTP Layer (thin routers)                                       │
+│   AuthR ── DriveR ── BatchR ── EvalR ── SettingsR              │
+│      │       │         │         │         │                    │
+│      ▼       ▼         ▼         ▼         ▼                    │
+└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│ Service Layer (business logic)                                  │
+│                                                                  │
+│   AuthService    DriveSyncService   BatchWorker                 │
+│        │              │                  │                       │
+│        │              │                  ▼                       │
+│        │              │        ProcessingPipeline               │
+│        │              │              │                          │
+│        │              │              ▼                          │
+│   EvalGenerator ────────────► LLMService ◄──── (chokepoint #2)  │
+│                                  │ │                            │
+│                                  │ ▼                            │
+│                              PIIAnonymizer ◄──── (chokepoint #1)│
+│                                  │                              │
+│                              AuditLogger                         │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │ (every write goes via this single asyncio.Queue)
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ DBWriteQueue (single-writer serializer for SQLite WAL)          │
+└──────────────────┬──────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Persistence: SQLite WAL (aiosqlite)                             │
+└─────────────────────────────────────────────────────────────────┘
+
+External adapters:
+  DriveClient (Google API) ◄── DriveSyncService
+  OpenRouterClient        ◄── LLMService（唯一出口）
+  DocumentExtractors      ◄── ProcessingPipeline
+                              (docx / xlsx / pptx / pdf / 圖片 / 音訊路由)
+```
+
+**3 個關鍵不變式**：
+1. 所有 Routers 都 thin — 處理 auth、Pydantic validation、呼叫一個 service、回 DTO；**不直接 import models / adapters**
+2. 所有 DB write **都經 DBWriteQueue 序列化** — services 不直接 commit（reads OK）
+3. **LLMService 是 OpenRouterClient 的唯一呼叫者** — services 想呼 LLM 必走此路
+4. **PIIAnonymizer 在 LLMService 內部執行** — pre-call + boundary check + post-call
+
+**Mermaid（機器精確版）**：
 
 ```mermaid
 graph TB
@@ -431,6 +645,43 @@ graph TB
 - **`PII` precedes `ORAd`** — enforced inside `LLMSvc`
 
 ### 4.2 Frontend component layers
+
+**易讀說明 — 3 層**：
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Routes (Next.js App Router pages)                               │
+│   layout.tsx / page.tsx / loading.tsx                          │
+│   /onboarding/* /semester/* /student/* /file/*                 │
+│   /evaluation/* /settings/*                                    │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │ uses
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Components (reusable presentational)                            │
+│                                                                  │
+│   UI Primitives        Editor          Wizard                   │
+│   - Button             - Markdown      - Mapping Wizard         │
+│   - Card               - Mermaid       (D14 onboarding)         │
+│   - Badge (7 states)   preview                                  │
+│   - Dialog             Progress        State Badges            │
+│   - Input/Select       - Batch         (per processing state)  │
+│   - Segmented          progress bar                             │
+│                        - Cost meter                             │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │ uses
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Lib (shared logic)                                              │
+│                                                                  │
+│   Custom hooks         API Client            Auth helpers       │
+│   - useFiles           (generated TS         (cookie/session)   │
+│   - useBatch           from FastAPI                             │
+│   - useEvaluation      OpenAPI)                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Mermaid（機器精確版）**：
 
 ```mermaid
 graph TB
@@ -713,6 +964,31 @@ Every `LLMService.call()` writes one `llm_call_audit` row with: `tier`, `model_i
 ## 8. Security Architecture
 
 ### 8.1 Authn/Authz flow
+
+**易讀說明 — 線性連結**：
+
+```
+Browser
+   │ (session cookie: HttpOnly + Secure + SameSite=Lax)
+   ▼
+Frontend (SSR via Next.js)
+   │ (forwards cookie)
+   ▼
+Backend API
+   │ (verify session) ─────► DB: SELECT teacher WHERE google_sub=...
+   │
+   │ (use refresh_token) ─► Google OAuth: refresh access_token
+   │                              │
+   │                              ▼ (returns new access_token)
+   │ (use access_token)  ─► Google Drive: drive.files.list
+```
+
+**3 個重點**：
+- Session 儲存於 HttpOnly + Secure cookie，由 `SECRET_KEY` 簽章
+- Token refresh 為 lazy：Drive API 收到 401 才 refresh，不主動更新
+- 單帳號 enforcement（A6）：session 取出 `teacher_id` 若與 DB 中唯一一行不同 → 直接 403
+
+**Mermaid（機器精確版）**：
 
 ```mermaid
 graph LR

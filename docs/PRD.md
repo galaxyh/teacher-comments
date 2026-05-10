@@ -353,6 +353,32 @@ CREATE INDEX idx_system_event_type ON system_event (event_type);
 
 每個 `(drive_file, artifact_type)` 對應一個獨立狀態：
 
+**易讀說明 — 狀態轉移表**：
+
+| From | Trigger | To | 自動重試？ |
+|------|---------|----|-----------|
+| `(initial)` | 索引時建立 | `pending` | — |
+| `pending` | batch worker pick up | `processing` | — |
+| `processing` | LLM 成功 | `processed` | — |
+| `processing` | 可重試失敗（rate limit / timeout / 5xx） | `failed` | ✓ ≤3 次 exponential backoff |
+| `processing` | 終端失敗（encrypted / corrupt / unsupported / quota_daily） | `unprocessable` | ✗ |
+| `failed` | 教師手動重試 OR 自動重試 | `processing` | — |
+| `unprocessable` | 教師手動重試（強制；UI 警告罕見有效） | `processing` | ✗（手動） |
+| `processed` | 教師於 UI 編輯回存 | `teacher_edited` | — |
+| `teacher_edited` | 偵測到原檔 hash 變動 | `reprocess_pending` | — |
+| `processed` | 偵測到原檔 hash 變動（無編輯版本） | `reprocess_pending` | — |
+| `reprocess_pending` | 教師於 UI 同意覆蓋 | `processing` | — |
+| `reprocess_pending` | 教師拒絕覆蓋（保留現有編輯） | `teacher_edited` | — |
+| `reprocess_pending` | 教師拒絕覆蓋（無編輯版本） | `processed` | — |
+
+**4 種狀態語意分組**：
+- **In-flight**：`pending` → `processing`
+- **Successful resting state**：`processed`、`teacher_edited`
+- **Awaiting decision**：`reprocess_pending`
+- **Failure resting**：`failed`（soft-terminal，可重試）、`unprocessable`（hard-terminal，需手動）
+
+**Mermaid（機器精確版）**：
+
 ```mermaid
 stateDiagram-v2
     [*] --> pending: 索引時建立
@@ -843,6 +869,54 @@ Root
 ---
 
 ## 8. System Architecture Overview
+
+**易讀說明 — 4 區塊**：
+
+```
+┌─────────────────────────────┐
+│ Browser                     │
+│   Next.js Frontend          │
+└──────────┬──────────────────┘
+           │ HTTPS
+           ▼
+┌─────────────────────────────────────────────────────┐
+│ Backend (FastAPI single container)                  │
+│                                                      │
+│   REST API Layer                                     │
+│        │                                             │
+│        ├─ OAuth Service                              │
+│        ├─ PII Anonymizer ◄─┐                        │
+│        ├─ LLM Service ─────┘ (tier-based routing)   │
+│        ├─ Batch Worker (asyncio task pool)          │
+│        └─ Drive Sync Service                         │
+└──────┬─────────────┬──────────────────┬─────────────┘
+       │             │                  │
+       │             │                  ▼
+       │             │           ┌──────────────┐
+       │             │           │ Local FS     │
+       │             │           │ (音訊暫存；   │
+       │             │           │  處理完即刪)  │
+       │             │           └──────────────┘
+       │             ▼
+       │     ┌──────────────────┐
+       │     │ PostgreSQL       │
+       │     │ (server-side     │
+       │     │  artifacts + DB) │
+       │     └──────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────┐
+│ External                              │
+│   ┌──────────────┐  ┌─────────────┐  │
+│   │ Google Drive │  │ OpenRouter  │  │
+│   │ (read-only)  │  │ (LLM)       │  │
+│   └──────────────┘  └─────────────┘  │
+└──────────────────────────────────────┘
+```
+
+> 注意：上圖反映 PRD v0.1 設計；v0.2 的 D16 後 DB 改為 SQLite + WAL，並增加 DBWriteQueue 序列化層。完整的更新版見 [`ARCH-001-architecture.md`](ARCH-001-architecture.md) §4.1。
+
+**Mermaid（機器精確版 — 反映 v0.1 設計）**：
 
 ```mermaid
 graph TB
