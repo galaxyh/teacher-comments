@@ -14,7 +14,8 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.core.exceptions import AppError
 from app.core.lifespan import lifespan
-from app.routers import auth, batch, drive, evaluation, files, pii, settings as settings_router, system
+from app.routers import auth, batch, drive, evaluation, files, pii, system
+from app.routers import settings as settings_router
 
 logger = logging.getLogger(__name__)
 

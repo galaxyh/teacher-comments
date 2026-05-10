@@ -34,7 +34,7 @@ class PdfExtractor:
     async def extract(self, *, file_bytes: bytes, filename: str) -> ExtractionResult:
         try:
             return await asyncio.to_thread(self._sync_extract, file_bytes, filename)
-        except (FileNotDecryptedError,) as exc:
+        except FileNotDecryptedError as exc:
             # Encrypted PDF — terminal (no OCR / decrypt path in V1)
             raise UnsupportedFormatError(
                 "Encrypted PDF — V1 cannot decrypt",
@@ -55,14 +55,13 @@ class PdfExtractor:
 
     def _sync_extract(self, file_bytes: bytes, filename: str) -> ExtractionResult:
         reader = PdfReader(io.BytesIO(file_bytes))
-        if reader.is_encrypted:
-            # Try empty password — many PDFs are "encrypted" with empty pw for printing
-            # restrictions only. If that fails, treat as truly-encrypted.
-            if reader.decrypt("") == 0:  # 0 = decryption failed
-                raise UnsupportedFormatError(
-                    "Encrypted PDF — V1 cannot decrypt",
-                    context={"filename": filename},
-                )
+        # Try empty password — many PDFs are "encrypted" with empty pw for printing
+        # restrictions only. If that fails, treat as truly-encrypted.
+        if reader.is_encrypted and reader.decrypt("") == 0:  # 0 = decryption failed
+            raise UnsupportedFormatError(
+                "Encrypted PDF — V1 cannot decrypt",
+                context={"filename": filename},
+            )
 
         warnings: list[str] = []
         text_parts: list[str] = []

@@ -40,12 +40,10 @@ class PlainTextExtractor:
 
 def _decode_with_fallback(file_bytes: bytes) -> tuple[str, str, list[str]]:
     """Try each encoding; return on first success. Replace undecodable as last resort."""
-    last_err: Exception | None = None
     for enc in ENCODING_CHAIN:
         try:
             return file_bytes.decode(enc), enc, []
-        except UnicodeDecodeError as exc:
-            last_err = exc
+        except UnicodeDecodeError:
             continue
     # Last resort — replace bad bytes so we don't lose the whole document
     text = file_bytes.decode("utf-8", errors="replace")

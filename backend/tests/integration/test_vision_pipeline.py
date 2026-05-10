@@ -151,8 +151,8 @@ def test_openrouter_messages_without_image_stay_simple() -> None:
 async def test_image_extractor_warns_on_oversize(isolated_env) -> None:
     """ImageExtractor surfaces a warning if the image is bigger than MAX_IMAGE_BYTES."""
     from app.adapters.document_extractors.image import (
-        ImageExtractor,
         MAX_IMAGE_BYTES,
+        ImageExtractor,
     )
 
     ext = ImageExtractor()

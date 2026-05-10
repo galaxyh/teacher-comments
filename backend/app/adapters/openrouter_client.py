@@ -24,7 +24,8 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal
 
-from openai import APIError, AsyncOpenAI, RateLimitError as OpenAIRateLimitError
+from openai import APIError, AsyncOpenAI
+from openai import RateLimitError as OpenAIRateLimitError
 
 from app.core.exceptions import (
     LLMRateLimitError,

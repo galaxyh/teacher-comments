@@ -51,7 +51,7 @@ def authed_client(isolated_env):
 
     from app.adapters.document_extractors import build_default_registry
     from app.config import get_settings
-    from app.core.session import issue_session_cookie, COOKIE_NAME
+    from app.core.session import COOKIE_NAME, issue_session_cookie
     from app.db.write_queue import get_write_queue
     from app.main import create_app
     from app.models import DriveFile, Teacher
@@ -100,7 +100,6 @@ def authed_client(isolated_env):
 
     with TestClient(app) as client:
         # Seed teacher + drive_file directly via the started write queue
-        import asyncio
 
         queue = get_write_queue()
 

@@ -102,7 +102,7 @@ class TestPlainTextExtractor:
     @pytest.mark.asyncio
     async def test_utf8_happy_path(self) -> None:
         ext = PlainTextExtractor()
-        body = "你好 hello".encode("utf-8")
+        body = "你好 hello".encode()
         result = await ext.extract(file_bytes=body, filename="x.txt")
         assert result.text == "你好 hello"
         assert result.warnings == []

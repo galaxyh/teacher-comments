@@ -6,7 +6,7 @@ Per ARCH-001 §4.2 conventions: UUID stored as TEXT(36); timestamps as ISO8601 T
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def gen_uuid() -> str:
@@ -20,4 +20,4 @@ def utcnow_iso() -> str:
     Matches PRD §4.2 schema convention; also avoids the `datetime.utcnow()`
     deprecation warning in 3.12.
     """
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")

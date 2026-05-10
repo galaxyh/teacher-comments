@@ -154,7 +154,7 @@ class DocxExtractor:
     def _document_has_images(document: DocxDocument) -> bool:
         # `<w:drawing>` / `<a:blip>` indicate embedded images
         body = document.element.body
-        return any(body.iter(qn("w:drawing"))) or any(body.iter(qn("a:blip")))
+        return any(body.iter(qn("w:drawing"))) or any(body.iter(qn("a:blip")))  # noqa: SIM102
 
 
 # ── helpers ─────────────────────────────────────────────────────────

@@ -15,7 +15,6 @@ from app.adapters.document_extractors.pptx import PptxExtractor
 from app.adapters.document_extractors.xlsx import XlsxExtractor
 from app.core.exceptions import DocumentExtractionError, UnsupportedFormatError
 
-
 # ── XLSX ─────────────────────────────────────────────────────────
 
 

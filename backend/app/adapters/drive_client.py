@@ -143,8 +143,9 @@ class DriveClient:
         scale (single .docx ~MB). Audio (>100MB) gets a separate streaming
         method in Phase 5+.
         """
-        from googleapiclient.http import MediaIoBaseDownload  # local: heavy import
         import io as _io
+
+        from googleapiclient.http import MediaIoBaseDownload  # local: heavy import
 
         def _sync() -> bytes:
             try:

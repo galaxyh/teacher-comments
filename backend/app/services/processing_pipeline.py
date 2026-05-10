@@ -190,17 +190,12 @@ def _build_audio_prompt(*, drive_file: DriveFile) -> str:
         "- 若為單講者，輸出 monologue 段落（不加講者標籤）。\n"
         "- 若為多講者對話，每行以「講者A：」「講者B：」標示。\n"
         "\n"
-        "- 類別：{category}\n"
-        "- 學期：{semester}\n"
-        "- 學生（已匿名化）：{pseudo}\n"
-        "- 檔名：{filename}\n"
+        f"- 類別：{category_zh}\n"
+        f"- 學期：{drive_file.semester_label}\n"
+        f"- 學生（已匿名化）：{drive_file.student_pseudo_id}\n"
+        f"- 檔名：{drive_file.filename}\n"
         "\n"
         "請輸出純文字逐字稿，不要附加標題或說明。"
-    ).format(
-        category=category_zh,
-        semester=drive_file.semester_label,
-        pseudo=drive_file.student_pseudo_id,
-        filename=drive_file.filename,
     )
 
 
@@ -220,20 +215,15 @@ def _build_vision_prompt(*, drive_file: DriveFile) -> str:
         "**重要**：圖中可能包含學生姓名、學號或其他個資。請**不要**逐字轉抄這些內容；\n"
         "改用「學生姓名」、「學號」等代詞描述存在但不複述具體值。\n"
         "\n"
-        "- 類別：{category}\n"
-        "- 學期：{semester}\n"
-        "- 學生（已匿名化）：{pseudo}\n"
-        "- 檔名：{filename}\n"
+        f"- 類別：{category_zh}\n"
+        f"- 學期：{drive_file.semester_label}\n"
+        f"- 學生（已匿名化）：{drive_file.student_pseudo_id}\n"
+        f"- 檔名：{drive_file.filename}\n"
         "\n"
         "請輸出三段：\n"
         "1. **主題**（1-2 句）\n"
         "2. **觀察重點**（3-5 個 bullet）\n"
         "3. **教師值得關注的細節**（簡短說明）"
-    ).format(
-        category=category_zh,
-        semester=drive_file.semester_label,
-        pseudo=drive_file.student_pseudo_id,
-        filename=drive_file.filename,
     )
 
 
@@ -249,19 +239,13 @@ def _build_summary_prompt(
     }.get(drive_file.category, drive_file.category)
 
     return (
-        "你是教師助手，請將以下「{category}」資料整理為 markdown 格式的精要摘要。\n"
-        "- 學期：{semester}\n"
-        "- 學生（已匿名化）：{pseudo}\n"
-        "- 檔名：{filename}\n\n"
+        f"你是教師助手，請將以下「{category_zh}」資料整理為 markdown 格式的精要摘要。\n"
+        f"- 學期：{drive_file.semester_label}\n"
+        f"- 學生（已匿名化）：{drive_file.student_pseudo_id}\n"
+        f"- 檔名：{drive_file.filename}\n\n"
         "請輸出三段：\n"
         "1. **主題**（1-2 句）\n"
         "2. **觀察重點**（3-5 個 bullet）\n"
         "3. **教師值得關注的細節**（簡短說明）\n\n"
-        "原始內容：\n----\n{content}\n----"
-    ).format(
-        category=category_zh,
-        semester=drive_file.semester_label,
-        pseudo=drive_file.student_pseudo_id,
-        filename=drive_file.filename,
-        content=extracted.text,
+        f"原始內容：\n----\n{extracted.text}\n----"
     )

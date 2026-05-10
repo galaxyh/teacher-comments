@@ -134,8 +134,9 @@ async def test_openrouter_messages_with_audio() -> None:
 
 
 def test_audio_extractor_warns_on_oversize(isolated_env) -> None:
-    from app.adapters.document_extractors.audio import AudioExtractor, MAX_AUDIO_BYTES
     import asyncio
+
+    from app.adapters.document_extractors.audio import MAX_AUDIO_BYTES, AudioExtractor
 
     ext = AudioExtractor()
     big = b"\x00" * (MAX_AUDIO_BYTES + 1024)

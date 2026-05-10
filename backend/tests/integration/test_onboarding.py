@@ -49,10 +49,11 @@ def test_attest_writes_system_event(authed_client: TestClient) -> None:
     authed_client.post("/onboarding/attest", json={"version": "v1"})
 
     # Check audit row written via direct DB read
+
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import SystemEvent
-    from sqlalchemy import select
-    import asyncio
 
     async def fetch():
         async with get_sessionmaker()() as s:

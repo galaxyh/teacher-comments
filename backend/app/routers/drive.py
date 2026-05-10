@@ -90,7 +90,7 @@ async def set_folder_mapping(
 # ── Attestation (D17) ──────────────────────────────────────────────
 
 
-from pydantic import BaseModel, Field   # noqa: E402 — local class definition
+from pydantic import BaseModel, Field  # noqa: E402 — local class definition
 
 
 class AttestRequest(BaseModel):

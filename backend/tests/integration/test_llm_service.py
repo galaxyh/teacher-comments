@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from app.adapters.openrouter_client import ChatResult, OpenRouterClient
+from app.adapters.openrouter_client import ChatResult
 from app.core.exceptions import LLMRateLimitError, PIILeakageError
 from app.services.llm_service import LLMService, TaskTier
 
@@ -80,7 +80,6 @@ async def llm_harness(isolated_env, write_queue):
     )
 
     from app.config import get_settings
-    from app.db.session import get_sessionmaker
     from app.models import Teacher
     from app.services.audit_logger import AuditLogger
     from app.services.pii_anonymizer import PIIAnonymizer

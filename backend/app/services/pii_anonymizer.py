@@ -359,13 +359,13 @@ class PIIAnonymizer:
 
     def _hash_value(self, value: str) -> str:
         """HMAC-SHA-256 keyed with PII_ENCRYPTION_KEY (re-using key — same trust scope)."""
-        from app.config import get_settings
         import base64
+
+        from app.config import get_settings
 
         key_b64 = get_settings().pii_encryption_key.get_secret_value()
         key = base64.b64decode(key_b64)
-        digest = hmac.new(key, value.encode("utf-8"), hashlib.sha256).hexdigest()
-        return digest
+        return hmac.new(key, value.encode("utf-8"), hashlib.sha256).hexdigest()
 
     async def _resolve_or_create(
         self, *, teacher_id: str, pii_type: PIIType, value: str, cipher: Cipher

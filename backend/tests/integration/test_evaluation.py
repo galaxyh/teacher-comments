@@ -16,7 +16,6 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
 
 from app.adapters.openrouter_client import ChatResult
 

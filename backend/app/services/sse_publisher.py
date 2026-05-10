@@ -56,7 +56,7 @@ class SSEPublisher:
     @staticmethod
     def format_sse(event: dict) -> bytes:
         """Encode event for `text/event-stream`. One blank line terminates the message."""
-        return f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode("utf-8")
+        return f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode()
 
 
 # Module singleton — wired through Depends like the write queue

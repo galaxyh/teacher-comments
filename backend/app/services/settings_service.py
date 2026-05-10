@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -62,7 +62,7 @@ class SettingsService:
                 json.loads(teacher.llm_tier_config) if teacher and teacher.llm_tier_config else {}
             )
 
-            month_start = datetime.now(timezone.utc).replace(
+            month_start = datetime.now(UTC).replace(
                 day=1, hour=0, minute=0, second=0, microsecond=0
             ).isoformat(timespec="seconds")
             cost_sum = (

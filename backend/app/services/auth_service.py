@@ -16,10 +16,9 @@ from __future__ import annotations
 
 import logging
 
+from google.oauth2.credentials import Credentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from google.oauth2.credentials import Credentials
 
 from app.adapters.google_oauth import (
     GOOGLE_TOKEN_URL,

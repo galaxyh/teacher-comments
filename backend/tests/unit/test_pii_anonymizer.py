@@ -26,7 +26,6 @@ async def anonymizer(isolated_env, write_queue):
         capture_output=True,
     )
     # Seed a teacher row so FK passes
-    from app.db.session import get_sessionmaker
     from app.models import Teacher
 
     async def insert_teacher(session) -> str:

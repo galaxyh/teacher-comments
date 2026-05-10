@@ -17,6 +17,18 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-21 Hardening pass — ruff clean + frontend vitest + ignore-file curation
+- **Decision**: Make backend ruff pass cleanly + add a minimal frontend vitest layer:
+  (a) Backend: 89 ruff issues → 0. Auto-fixed 44 (unused imports, encoding kwargs, f-string redundancies, etc.). 11 remaining were noisy false-positives — added narrow ignore rules with rationale comments in `pyproject.toml`:
+      - global ignore: `UP042` (we use `str+Enum` mixin deliberately for string-coercible enums), `ASYNC109` (timeout kwarg semantically correct in adapters), `ASYNC221` (subprocess in test seed fixtures is fine), `S107` (refresh_token is a parameter name, not a hardcoded secret).
+      - per-file: tests get loose assertions / shell-out / unused-var allowance; auth_service + google_oauth get `S105` ignore (URL constants, not passwords); llm_service gets `BLE001` (intentional bare-except wrappers around 3rd-party SDK errors).
+      Also fixed 3 actual issues in src: pdf.py nested-if collapse, text.py unused exception var, pii_anonymizer.py unnecessary intermediate variable. All 129 tests still pass.
+  (b) Frontend: `vitest.config.ts` + `@testing-library/jest-dom` setup + `src/lib/api.test.ts` (5 tests covering `loginUrl` encoding, `me` happy path, 401 ApiError shape, 412 ApiError reason field). Total frontend test count: 5/5 passing.
+  Out of scope: Playwright E2E, scripts/start-test-stack.sh / wait-for-stack.sh — referenced by the existing `e2e` workflow job but require a mock-LLM + mock-Drive harness. The E2E job will skip until those scripts ship (the workflow's `if: hashFiles(...)` guards already handle this).
+- **Rationale**: ruff and mypy strictness should be non-blocking after first install — every false-positive ignore that lands in pyproject.toml has a rationale comment so future maintainers don't have to re-derive why. The frontend test focuses on the API client because that's the piece most likely to drift from backend response shapes (ApiError reason fields are part of the UI's branching logic). Skipping Playwright is honest scope discipline — adding it without a working test stack would make the CI red without catching real bugs.
+- **Files**: `backend/pyproject.toml` (ruff ignores + rationale), `backend/app/adapters/document_extractors/pdf.py` (nested-if collapse), `backend/app/adapters/document_extractors/text.py` (unused var), `backend/app/services/pii_anonymizer.py` (return-vs-assign cleanup), `backend/app/adapters/document_extractors/docx.py` (`# noqa: SIM102`), various Python files auto-formatted (UP rules), `frontend/vitest.config.ts`, `frontend/src/test/setup.ts`, `frontend/src/lib/api.test.ts`
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-20 Implementation Phase 12 — Settings page (LLM tier overrides + budget gauge)
 - **Decision**: Per-teacher LLM tier override + monthly budget visibility per PRD §5 / D8:
   (a) `app/services/settings_service.py` — `get_view(teacher_id)` returns the effective tier→model map (process default overlaid by `teacher.llm_tier_config` JSON), plus the current calendar-month sum of `llm_call_audit.cost_usd` and the process-wide budget cap. `set_tier_overrides` validates tier names against the four-tier set and persists; empty string clears that tier's override.

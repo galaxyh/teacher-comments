@@ -8,7 +8,6 @@ folder tree. DriveSyncService doesn't care which client it gets.
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import pytest
@@ -25,7 +24,7 @@ class _FakeNode:
     mime_type: str = "application/vnd.google-apps.folder"
     size_bytes: int | None = None
     modified_time: str = "2026-05-01T00:00:00Z"
-    children: list["_FakeNode"] = field(default_factory=list)
+    children: list[_FakeNode] = field(default_factory=list)
 
 
 def _to_drive_item(node: _FakeNode) -> DriveItem:
@@ -167,9 +166,10 @@ async def test_scan_indexes_files_under_standard_categories(harness) -> None:
     assert result.files_indexed == 3
 
     # Verify rows landed in DB with correct category mapping
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import DriveFile
-    from sqlalchemy import select
 
     async with get_sessionmaker()() as session:
         rows = (await session.execute(select(DriveFile))).scalars().all()
@@ -197,9 +197,10 @@ async def test_scan_returns_needs_mapping_for_nonstandard_folders(harness) -> No
     assert result.needs_folder_mapping is True
     assert "課堂筆記" in result.unmapped_category_names
     # The standard folder still indexed despite the unmapped one
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import DriveFile
-    from sqlalchemy import select
 
     async with get_sessionmaker()() as session:
         rows = (await session.execute(select(DriveFile))).scalars().all()
@@ -240,9 +241,10 @@ async def test_scan_uses_persisted_folder_mapping(harness) -> None:
     assert r2.needs_folder_mapping is False
     assert r2.files_indexed == 2  # note + talk; misc skipped
 
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import DriveFile
-    from sqlalchemy import select
 
     async with get_sessionmaker()() as session:
         rows = (await session.execute(select(DriveFile))).scalars().all()

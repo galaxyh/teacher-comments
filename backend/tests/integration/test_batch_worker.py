@@ -12,7 +12,6 @@ Verifies:
 from __future__ import annotations
 
 import asyncio
-import json
 import subprocess
 from dataclasses import dataclass
 from decimal import Decimal
@@ -146,9 +145,10 @@ async def test_terminal_failure_marks_unprocessable(worker_harness) -> None:
     assert snapshot.failed == 1
 
     # Verify artifact state
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import DriveFile, ProcessedArtifact
-    from sqlalchemy import select
 
     async with get_sessionmaker()() as s:
         rows = (
@@ -175,9 +175,10 @@ async def test_rate_limit_marks_failed_not_unprocessable(worker_harness) -> None
             break
         await asyncio.sleep(0.05)
 
+    from sqlalchemy import select
+
     from app.db.session import get_sessionmaker
     from app.models import ProcessedArtifact
-    from sqlalchemy import select
     async with get_sessionmaker()() as s:
         artifacts = (
             await s.execute(

@@ -24,7 +24,6 @@ Out of scope for Phase 5alt (deferred to 5alt-2):
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 
