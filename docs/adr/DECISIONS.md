@@ -17,6 +17,21 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-16 Implementation Phase 8 — onboarding wizard (D17 attestation + D14 mapping)
+- **Decision**: Complete the post-OAuth onboarding flow per ARCH-001 §3.1 / PRD §3.2 Flow A:
+  (a) Backend: `AuthService.attest(teacher_id, version)` updates `teacher.consent_attestation_at` + `consent_attestation_version`, writes `attestation_signed` system_event for legal-grade audit. New endpoint `POST /onboarding/attest {version}`. Idempotent — same version may be re-signed.
+  (b) Frontend `/onboarding` 4-step wizard (`attest → pick-root → mapping → done`):
+      - Step 1: attestation text + checkbox + submit (D17 explicit consent)
+      - Step 2: pick teaching root from `GET /drive/list` (radio list)
+      - Step 3: D14 mapping wizard — for each `unmapped_category_names` entry, dropdown to learning/interaction/work/`__skip__`. Validation: all entries must be assigned before submit
+      - Step 4: scan summary (semesters / students / files indexed)
+  (c) Bootstrap-on-load: useEffect calls `/me`, jumps to first incomplete step (if `has_attested` + `has_drive_root` already set, runs scan and either lands at `mapping` or `done`).
+  (d) Home page (`/`) gains an "尚有設定步驟未完成" banner linking to `/onboarding` when `has_attested=false` OR `has_drive_root=false`.
+  Tests: 5 new backend (test_onboarding.py — happy path / system_event recorded / 401 anonymous / 422 empty version / idempotent), full suite 107 passed.
+- **Rationale**: `attest` shipped in `AuthService` (not its own service) because attestation is an auth-flow extension — the audit trail is OAuth-adjacent, the `teacher` row carries the state. Frontend wizard built as a single page with step-state machine (rather than nested routes) so abandoning + returning lands the user at the same step seamlessly via the bootstrap effect — refresh-resume costs zero session state on the server.
+- **Files**: `backend/app/services/auth_service.py` (added `attest`), `backend/app/routers/drive.py` (added `POST /onboarding/attest`), `backend/tests/integration/test_onboarding.py`, `frontend/src/lib/api.ts` (added Drive + onboarding calls), `frontend/src/app/onboarding/page.tsx`, `frontend/src/app/page.tsx` (onboarding banner)
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-15 Implementation Phase 7 — batch dashboard UI + SSE wiring
 - **Decision**: Add `/batch` dashboard route to frontend with live progress via EventSource:
   (a) `src/lib/api.ts` extended with `BatchStatusResponse` / `BatchEvent` types and `startBatch` / `cancelBatch` / `getBatchStatus` / `openBatchEventStream` calls.

@@ -85,3 +85,29 @@ async def set_folder_mapping(
 ) -> dict[str, str]:
     await sync.set_folder_mapping(teacher_id=teacher.id, mapping=body.mapping)
     return {"status": "ok", "mapping_count": str(len(body.mapping))}
+
+
+# ── Attestation (D17) ──────────────────────────────────────────────
+
+
+from pydantic import BaseModel, Field   # noqa: E402 — local class definition
+
+
+class AttestRequest(BaseModel):
+    version: str = Field(default="v1", min_length=1, max_length=8)
+    """The attestation text version the teacher saw + agreed to."""
+
+
+@router.post("/onboarding/attest", status_code=status.HTTP_200_OK)
+async def attest(
+    body: AttestRequest,
+    teacher: Teacher = Depends(get_current_teacher),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict[str, str]:
+    """Record the teacher's parental-consent attestation (D17 / PRD §3.2 Flow A step 2).
+
+    Idempotent — same teacher can sign multiple times (e.g., new version published).
+    Each call records a fresh `attestation_signed` system_event for audit.
+    """
+    updated = await auth.attest(teacher_id=teacher.id, version=body.version)
+    return {"status": "ok", "version": updated.consent_attestation_version or body.version}

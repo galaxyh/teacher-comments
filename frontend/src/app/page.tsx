@@ -56,6 +56,8 @@ export default function HomePage() {
     );
   }
 
+  const onboardingPending = !me.has_attested || !me.has_drive_root;
+
   return (
     <div className="space-y-6">
       <div className="rounded-md border border-stone-200 bg-white p-4">
@@ -65,6 +67,18 @@ export default function HomePage() {
           家長同意聲明：{me.has_attested ? '已勾選' : '尚未勾選'}
         </p>
       </div>
+
+      {onboardingPending && (
+        <div className="rounded-md border border-accent/40 bg-accent/5 p-4">
+          <p className="text-sm">尚有設定步驟未完成。</p>
+          <Link
+            href="/onboarding"
+            className="mt-2 inline-block rounded-md bg-accent px-3 py-1.5 text-white text-sm"
+          >
+            前往設定 →
+          </Link>
+        </div>
+      )}
 
       <section className="grid gap-4 md:grid-cols-2">
         <Card title="批次處理" body="將 Drive 中本學期檔案送 LLM 摘要。" href="/batch" />

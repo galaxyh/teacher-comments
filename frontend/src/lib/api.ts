@@ -67,6 +67,21 @@ export interface EvaluationContextResponse {
   work_summaries: string[];
 }
 
+export interface DriveTreeNode {
+  drive_file_id: string;
+  name: string;
+  is_folder: boolean;
+}
+
+export interface ScanResult {
+  semesters_found: number;
+  students_found: number;
+  files_indexed: number;
+  files_unchanged: number;
+  needs_folder_mapping: boolean;
+  unmapped_category_names: string[];
+}
+
 export interface BatchStatusResponse {
   batch_job_id: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -185,6 +200,42 @@ export const api = {
   openBatchEventStream(batchJobId: string): EventSource {
     return new EventSource(`/batch/${encodeURIComponent(batchJobId)}/events`, {
       withCredentials: true,
+    });
+  },
+
+  // ── Onboarding ────────────────────────────────────────────────
+
+  async attest(version: string = 'v1'): Promise<{ version: string }> {
+    return unwrap(
+      await baseFetch('/onboarding/attest', {
+        method: 'POST',
+        body: JSON.stringify({ version }),
+      }),
+    );
+  },
+
+  async listDriveRootCandidates(): Promise<DriveTreeNode[]> {
+    const body = await unwrap<{ items: DriveTreeNode[] }>(await baseFetch('/drive/list'));
+    return body.items;
+  },
+
+  async setDriveRoot(folderId: string): Promise<void> {
+    await baseFetch('/onboarding/drive-root', {
+      method: 'POST',
+      body: JSON.stringify({ folder_id: folderId }),
+    });
+  },
+
+  async scan(): Promise<ScanResult> {
+    return unwrap<ScanResult>(
+      await baseFetch('/drive/scan', { method: 'POST' }),
+    );
+  },
+
+  async setFolderMapping(mapping: Record<string, string>): Promise<void> {
+    await baseFetch('/onboarding/folder-mapping', {
+      method: 'POST',
+      body: JSON.stringify({ mapping }),
     });
   },
 };

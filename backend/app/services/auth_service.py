@@ -130,6 +130,28 @@ class AuthService:
 
         await self._audit.log_event("oauth_logout", teacher_id=teacher_id)
 
+    async def attest(self, *, teacher_id: str, version: str = "v1") -> Teacher:
+        """Record onboarding consent attestation (D17 / PRD §3.2 Flow A step 2).
+
+        UPDATE teacher.consent_attestation_at + version. Logs `attestation_signed`
+        for audit (legal-grade trail).
+        """
+        async def update(session: AsyncSession) -> Teacher:
+            row = await session.get(Teacher, teacher_id)
+            if row is None:
+                raise ValueError(f"No teacher with id={teacher_id!r}")
+            row.consent_attestation_at = utcnow_iso()
+            row.consent_attestation_version = version
+            return row
+
+        teacher = await self._queue.submit(update)
+        await self._audit.log_event(
+            "attestation_signed",
+            teacher_id=teacher_id,
+            payload={"version": version},
+        )
+        return teacher
+
     async def get_teacher(self, *, teacher_id: str) -> Teacher | None:
         async with get_sessionmaker()() as session:
             return await session.get(Teacher, teacher_id)
