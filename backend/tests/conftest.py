@@ -49,11 +49,13 @@ def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pa
     from app.db import session as db_session
     from app.db import write_queue as wq
     from app.services import encryption
+    from app.services import sse_publisher as sse
 
     _set_test_env(tmp_path)
     get_settings.cache_clear()
     encryption.reset_cipher_cache()
     wq.reset_write_queue_cache()
+    sse.reset_sse_publisher_cache()
     asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
         db_session.reset_engine_cache()
     )
@@ -61,6 +63,7 @@ def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Pa
     get_settings.cache_clear()
     encryption.reset_cipher_cache()
     wq.reset_write_queue_cache()
+    sse.reset_sse_publisher_cache()
     asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
         db_session.reset_engine_cache()
     )
