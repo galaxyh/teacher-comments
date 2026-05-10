@@ -24,7 +24,7 @@
   (c) Tests: 5 service-level (gather_context per-category split, generate persists row, regenerate UPSERTs same row, save_edit preserves generated_text, no-artifacts raises) + 6 router-level (context fetch, generate happy path, 412 no_artifacts, edit persists, 422 invalid style, 401 anonymous) — full suite 81 passed.
 - **Rationale**: Phase 5 closes the OAuth → process → generate → edit narrative for a single student × semester. UPSERT semantics on `semester_evaluation` reflect D-2026-05-10-04 mindset — one canonical evaluation per (teacher, semester, student); regenerate replaces but `edited_text` discipline preserves audit history. Char-cap per category (4K) is a heuristic; Phase 5+ can swap for tokenizer-aware truncation when adding image/audio tiers (`vision_cheap`/`audio_standard`) where token budgets matter more. The router fixture had to be rebuilt to NOT depend on the service-level fixture — `TestClient` lifespan creates a fresh event loop, and an `asyncio.Queue` is bound to its creating loop; fixture-built queues from `gen_harness` would cross-loop deadlock. Documented inline in test fixture.
 - **Files**: `backend/app/services/evaluation_generator.py`, `backend/app/schemas/evaluation.py`, `backend/app/routers/evaluation.py`, `backend/app/main.py` (wired evaluation router), `backend/tests/integration/test_evaluation.py`
-- **Commit**: _fill after commit_
+- **Commit**: `27b2cfd`
 - **Lesson**: None new for cross-tool documentation. The `asyncio.Queue` cross-loop binding gotcha was already implicit in Phase 4b test fixture; explicit code comment in Phase 5 fixture suffices for future readers.
 
 ### D-2026-05-10-10 Implementation Phase 4b — Document extractors + ProcessingPipeline + single-file endpoint
