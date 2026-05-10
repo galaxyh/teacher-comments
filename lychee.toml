@@ -43,8 +43,14 @@ max_cache_age = "7d"
 # ────────────────────────────────────────────────────────────────
 # Heavy cross-referencing like architecture.md#3-1-section is the main
 # reason to use lychee over alternatives. Always keep this enabled.
+#
+# Lychee 0.24.0+ changed this option from boolean to enum. Valid values:
+#   "none"        — disable fragment checks
+#   "anchor-only" — only #section anchors (recommended for markdown docs)
+#   "text-only"   — only #:~:text= browser fragments
+#   "full"        — both anchors and text fragments
 
-include_fragments = true
+include_fragments = "anchor-only"
 
 # ────────────────────────────────────────────────────────────────
 # What to check

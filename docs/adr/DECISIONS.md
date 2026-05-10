@@ -42,7 +42,7 @@
   (D16) Database = SQLite + WAL mode + aiosqlite driver; DB-write serialization queue.
   (D17) Onboarding requires parental-consent attestation checkbox; recorded in `teacher.consent_attestation_at`.
   Compliance Assumptions extended with A6 (single-account assumption).
-- **Rationale**: All 13 questions deliberated with explicit cost / complexity / risk trade-offs in chat. User selected recommended options on most (Min UI, mapping wizard, attestation, SQLite, Docker, no auto-schedule, no archive, single-account); diverged from recommendation on OQ-6 (chose stricter "no account concept" instead of "logout-to-switch") and OQ-10 (chose pure suggestion over retry-once). Cost target ($5/semester) far overshot — predicted ~$1 with Flash Lite default. Out-of-Scope §12 expanded to 18 items to make V1 boundary explicit and prevent scope creep.
+- **Rationale**: All 13 questions deliberated with explicit cost / complexity / risk trade-offs in chat. User selected recommended options on most (Min UI, mapping wizard, attestation, SQLite, Docker, no auto-schedule, no archive, single-account); diverged from recommendation on OQ-6 (chose stricter "no account concept" instead of "logout-to-switch") and OQ-10 (chose pure suggestion over retry-once). Cost target ($5/semester) far overshot — predicted ~$1 with Flash Lite default. PRD §12 (Out of Scope) expanded to 18 items to make V1 boundary explicit and prevent scope creep.
 - **Files**: `docs/PRD.md` (full rewrite to v0.2)
 - **Commit**: `95f2962`
 - **Lesson**: None yet — implementation TODOs (T-1 through T-10) tracked in PRD §13 will surface lessons during build.

@@ -14,3 +14,8 @@
 
 # --- Lychee link checker cache ---
 .lycheecache
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo

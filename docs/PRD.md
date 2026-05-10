@@ -889,7 +889,12 @@ Root
 │        ├─ LLM Service ─────┘ (tier-based routing)   │
 │        ├─ Batch Worker (asyncio task pool)          │
 │        └─ Drive Sync Service                         │
-└──────┬─────────────┬──────────────────┬─────────────┘
+│                                                      │
+│   ┌──────────────────────────────────────────────┐  │
+│   │ DBWriteQueue (asyncio.Queue serializer)      │  │
+│   │  — single-writer for SQLite WAL              │  │
+│   └────────────────┬─────────────────────────────┘  │
+└──────┬─────────────┼──────────────────┬─────────────┘
        │             │                  │
        │             │                  ▼
        │             │           ┌──────────────┐
@@ -898,11 +903,11 @@ Root
        │             │           │  處理完即刪)  │
        │             │           └──────────────┘
        │             ▼
-       │     ┌──────────────────┐
-       │     │ PostgreSQL       │
-       │     │ (server-side     │
-       │     │  artifacts + DB) │
-       │     └──────────────────┘
+       │     ┌──────────────────────────┐
+       │     │ SQLite + WAL             │
+       │     │ (aiosqlite; D16)         │
+       │     │ server-side artifacts    │
+       │     └──────────────────────────┘
        │
        ▼
 ┌──────────────────────────────────────┐
@@ -914,9 +919,9 @@ Root
 └──────────────────────────────────────┘
 ```
 
-> 注意：上圖反映 PRD v0.1 設計；v0.2 的 D16 後 DB 改為 SQLite + WAL，並增加 DBWriteQueue 序列化層。完整的更新版見 [`ARCH-001-architecture.md`](ARCH-001-architecture.md) §4.1。
+> 此圖反映 PRD v0.2 / D16 的當前設計（SQLite + WAL + DBWriteQueue）。完整的元件圖見 [`ARCH-001-architecture.md`](ARCH-001-architecture.md) §4.1。
 
-**Mermaid（機器精確版 — 反映 v0.1 設計）**：
+**Mermaid（機器精確版）**：
 
 ```mermaid
 graph TB
