@@ -1,0 +1,75 @@
+###############################################################################
+# Lychee configuration — universal template
+#
+# Used by:
+#   - .github/workflows/link-check.yml (CI)
+#   - Local: lychee --config lychee.toml './*.md' './docs/**/*.md'
+#
+# Docs: https://lychee.cli.rs/usage/config/
+###############################################################################
+
+# ────────────────────────────────────────────────────────────────
+# Performance
+# ────────────────────────────────────────────────────────────────
+
+# Don't DOS small servers with too many parallel requests.
+max_concurrency = 8
+
+# Follow redirects (most external citations redirect via marketing → article).
+max_redirects = 5
+
+# Per-request timeout in seconds.
+timeout = 20
+
+# ────────────────────────────────────────────────────────────────
+# Retry behavior
+# ────────────────────────────────────────────────────────────────
+
+# Retry transient failures up to N times.
+max_retries = 2
+
+# Wait this many seconds between retries.
+retry_wait_time = 2
+
+# ────────────────────────────────────────────────────────────────
+# Caching (used by full-check job; ignored by --offline PR job)
+# ────────────────────────────────────────────────────────────────
+
+cache = true
+max_cache_age = "7d"
+
+# ────────────────────────────────────────────────────────────────
+# Anchor (#fragment) validation
+# ────────────────────────────────────────────────────────────────
+# Heavy cross-referencing like architecture.md#3-1-section is the main
+# reason to use lychee over alternatives. Always keep this enabled.
+
+include_fragments = true
+
+# ────────────────────────────────────────────────────────────────
+# What to check
+# ────────────────────────────────────────────────────────────────
+
+# Don't check mailto: URLs (no useful validation possible)
+include_mail = false
+
+# ────────────────────────────────────────────────────────────────
+# What to accept as success
+# ────────────────────────────────────────────────────────────────
+# 200-208: Standard success
+# 301/302/307/308: Permanent / temporary redirects
+# 429: Rate limit (treat as soft pass — server is alive, just throttling us)
+# 999: LinkedIn's polite "we don't like bots" code (page exists)
+
+accept = ["200..=208", "301", "302", "307", "308", "429", "999"]
+
+# ────────────────────────────────────────────────────────────────
+# HTTP behavior
+# ────────────────────────────────────────────────────────────────
+
+# Some sites block default lychee UA — use a normal browser UA.
+user_agent = "Mozilla/5.0 (compatible; lychee-link-checker) AppleWebKit/537.36"
+
+# Skip private/loopback IPs (don't waste time on 127.0.0.1 etc.)
+exclude_loopback = true
+exclude_link_local = true

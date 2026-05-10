@@ -1,0 +1,16 @@
+# ─────────────────────────────────────────────────────────────────────
+# Governance kit additions — append these blocks to your .gitignore
+# ─────────────────────────────────────────────────────────────────────
+
+# --- Claude Code (project-level) ---
+# Personal permissions — do NOT commit (may contain absolute paths, user-specific allows)
+.claude/settings.json
+.claude/settings.local.json
+
+# Project-level Claude Code commands & skills — personal dev tooling,
+# NOT a project requirement. Each developer sets up their own (or skips entirely).
+.claude/commands/
+.claude/skills/
+
+# --- Lychee link checker cache ---
+.lycheecache

@@ -1,0 +1,115 @@
+name: Markdown Link Check
+
+# Two-stage strategy:
+#   1. PR job (internal-only): Fast (<10s), blocks merge on broken file paths/anchors
+#   2. Weekly scheduled job (full): Catches external URL rot, opens issue (does NOT block)
+#
+# Tool: lychee (Rust) via lycheeverse/lychee-action
+# Config: lychee.toml + .lycheeignore at repo root
+# Local equivalent: lychee --offline --include-fragments './*.md' './docs/**/*.md'
+#
+# Customize input globs below if your project has docs in other locations
+# (e.g., add 'CONTRIBUTING.md' or 'wiki/**/*.md' to the args).
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '.github/workflows/link-check.yml'
+      - 'lychee.toml'
+      - '.lycheeignore'
+  schedule:
+    # Every Monday 02:00 UTC (10:00 Asia/Taipei)
+    - cron: '0 2 * * 1'
+  workflow_dispatch:  # Manual trigger from Actions tab
+
+permissions:
+  contents: read
+  issues: write  # For scheduled job's auto-issue creation
+
+jobs:
+  # ────────────────────────────────────────────────────────────────
+  # Job 1: PR check — internal links + anchors only (offline mode)
+  # ────────────────────────────────────────────────────────────────
+  internal-links:
+    name: Internal links (PR check)
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run lychee (offline mode — internal links + anchors only)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # --offline: skip all HTTP(S) URLs
+          # --include-fragments: validate #anchor existence in target files
+          # --exclude-path: skip personal Claude Code config (symlinks may target user-local paths)
+          # --no-progress: cleaner CI logs
+          # Inputs: top-level docs + everything in docs/ (skip .claude/, .github/)
+          args: >-
+            --config lychee.toml
+            --offline
+            --include-fragments
+            --exclude-path '\.claude/'
+            --no-progress
+            './*.md'
+            './docs/**/*.md'
+          # Fail PR on any broken internal link
+          fail: true
+
+  # ────────────────────────────────────────────────────────────────
+  # Job 2: Weekly full check — internal + external URLs
+  # ────────────────────────────────────────────────────────────────
+  full-check:
+    name: Full check (weekly + manual)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore lychee cache
+        uses: actions/cache@v4
+        with:
+          path: .lycheecache
+          key: cache-lychee-${{ github.sha }}
+          restore-keys: cache-lychee-
+
+      - name: Run lychee (full check — internal + external)
+        id: lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --config lychee.toml
+            --include-fragments
+            --exclude-path '\.claude/'
+            --cache
+            --max-cache-age 7d
+            --no-progress
+            './*.md'
+            './docs/**/*.md'
+          # Don't fail the workflow — instead, create issue below
+          fail: false
+          # Output report for issue body
+          output: ./lychee-report.md
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lychee-report
+          path: ./lychee-report.md
+          retention-days: 30
+
+      - name: Create issue on broken links
+        # Only when:
+        # - lychee found errors (exit_code != 0)
+        # - Triggered by schedule (not manual workflow_dispatch)
+        if: env.lychee_exit_code != '0' && github.event_name == 'schedule'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: 'Broken links detected in documentation (weekly check)'
+          content-filepath: ./lychee-report.md
+          labels: |
+            documentation
+            link-rot
+            automated

@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────
+# Lychee link checker — exclusion patterns (regex, one per line)
+# ─────────────────────────────────────────────────────────────────────
+# Each line is a regex matched against the URL.
+# Used by both PR job (--offline) and weekly full check.
+
+# ───── Localhost / loopback (development URLs in code examples) ─────
+^https?://localhost
+^https?://127\.0\.0\.1
+^https?://0\.0\.0\.0
+
+# ───── Placeholder URLs in code examples / docs ─────
+example\.com
+example\.org
+yourcompany\.
+
+# ───── Internal Docker hostnames (referenced in nginx.conf, compose) ─────
+^https?://(backend|frontend|nginx|postgres|redis|app|db):\d+
+
+# ───── Private / staging hosts that aren't publicly reachable ─────
+\.internal/
+\.local(/|$)
+
+# ───── Known-flaky external sources (rate-limit aggressive, OK to skip) ─────
+# Add specific URLs here as link rot is detected, with comment explaining why.
+# Example:
+# ^https://twitter\.com/.*  # Twitter blocks all bot traffic in 2026
