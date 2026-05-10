@@ -7,10 +7,20 @@
 
 ## Status
 
-**Stage**: Spec freeze — V1 implementation kickoff
-- Full requirements: [`docs/PRD.md`](docs/PRD.md) (v0.2, 17 locked decisions)
-- Decision log: [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md)
-- Design mockup (informational, not the V1 spec): [`mockups/`](mockups/) — standalone React UMD prototype, codenamed 「墨痕」
+**Stage**: Engineering design freeze — V1 implementation ready
+
+- **Functional spec**: [`docs/PRD.md`](docs/PRD.md) (v0.2, 17 locked decisions)
+- **Decision log**: [`docs/adr/DECISIONS.md`](docs/adr/DECISIONS.md) (D-01 through D-05)
+- **Architectural rationale**: [`docs/adr/ADR-001-system-foundation.md`](docs/adr/ADR-001-system-foundation.md) (7 axes, options evaluated)
+
+**Engineering design docs**:
+- [`docs/ARCH-001-architecture.md`](docs/ARCH-001-architecture.md) — modules, data flow, deployment, cross-cutting concerns (1/5)
+- [`docs/DESIGN-001-detailed-design.md`](docs/DESIGN-001-detailed-design.md) — service contracts, error matrix, config plumbing (2/5)
+- [`docs/UIUX-001-design-system.md`](docs/UIUX-001-design-system.md) — design tokens, components, 8 screen specs (3/5)
+- [`docs/BDD-001-behavior-scenarios.md`](docs/BDD-001-behavior-scenarios.md) — 58 Gherkin scenarios across F-1~F-10 (4/5)
+- [`docs/TDD-001-testing-strategy.md`](docs/TDD-001-testing-strategy.md) — test pyramid, mock strategy, Playwright E2E, CI (5/5)
+
+**Design mockup** (informational, not V1 production code): [`mockups/`](mockups/) — standalone React UMD prototype, codenamed 「墨痕」
 
 ## Tech Stack
 

@@ -21,13 +21,13 @@
 - **Decision**: Add `system_event` table to PRD §4.2 schema for non-LLM audit events: `oauth_login` / `oauth_logout` / `oauth_revoked` / `attestation_signed` / `attestation_invalidated` / `key_rotated` / `schema_migrated` / `batch_started` / `batch_completed` / `batch_failed` / `pii_leakage_detected`. Two indexes on `(teacher_id, created_at)` and `(event_type)`. Resolves ARCH-001 OAQ-5.
 - **Rationale**: Non-LLM events were previously only in stdout logs (ephemeral). For debugging "why did batch fail at 03:42 last week?" / "did the user actually attest?" / security incident review, persistent structured audit is high-leverage at low cost (one small table). Especially the `pii_leakage_detected` event is a critical alert channel — it must never be silently lost. Additive change, no decision reversal.
 - **Files**: `docs/PRD.md` §4.2, `docs/DESIGN-001-detailed-design.md` §2.5, §4.8, §9
-- **Commit**: _fill after commit_
+- **Commit**: `04050bc`
 
 ### D-2026-05-10-04 Add `unprocessable` (terminal) state separate from `failed` (retriable)
 - **Decision**: Refine PRD §4.3 file processing state machine — split previously monolithic `failed` into two states: `failed` (retriable; auto-retry up to 3x with exponential backoff for rate_limit / timeout / API 5xx) and `unprocessable` (terminal; not auto-retried; manual retry only with UI warning, for encrypted_file / corrupt_file / unsupported_format / daily_quota_exhausted). Updates `processed_artifact.state` CHECK constraint, error hierarchy in DESIGN-001 §6, and worker error→state mapping in DESIGN-001 §6.3. Resolves ARCH-001 OAQ-1.
 - **Rationale**: Lessons-learned `architecture.md` "Distinguish Terminal Failures from Retriable Failures" — a single `failed` state causes bulk retries to hammer permanently-broken files (encrypted PDFs, corrupt docx, unsupported formats), wasting LLM budget on hopeless cases. Observed pattern in past projects. PRD §4.3 originally had only `failed`; this is a refinement (additive new state, no semantics removed) but does change behavior for previously-failing terminal cases. Not a full reversal of D4 (batch + state machine + edit protection still in force) — just refines the state set.
 - **Files**: `docs/PRD.md` §4.2 (schema CHECK constraint), §4.3 (state diagram + key-design-points), `docs/DESIGN-001-detailed-design.md` §2.1, §3, §6
-- **Commit**: _fill after commit_
+- **Commit**: `04050bc`
 
 ### D-2026-05-10-03 Resolve 13 Open Questions; PRD v0.2 with 10 refinement decisions (D8-D17)
 - **Decision**: Resolved all 13 Open Questions (10 from v0.1 §13 + 3 author-added) across 4 review rounds. Locks 10 additional architectural decisions documented as D8-D17 in `docs/PRD.md` §2.2:
