@@ -26,7 +26,7 @@ jobs:
     if: hashFiles('backend/pyproject.toml') != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install uv
         uses: astral-sh/setup-uv@v3
       - name: Sync dependencies
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: backend-unit
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --frozen
         working-directory: ./backend
@@ -67,7 +67,7 @@ jobs:
     if: hashFiles('backend/pyproject.toml') != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --frozen
         working-directory: ./backend
@@ -112,7 +112,7 @@ jobs:
     if: hashFiles('frontend/package.json') != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v3
         with: { version: 9 }
       - uses: actions/setup-node@v4
@@ -130,7 +130,7 @@ jobs:
     if: hashFiles('frontend/package.json') != ''
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v3
         with: { version: 9 }
       - uses: actions/setup-node@v4
@@ -184,7 +184,7 @@ jobs:
     needs: [backend-unit, frontend-unit]
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v3
       - uses: pnpm/action-setup@v3
         with: { version: 9 }
