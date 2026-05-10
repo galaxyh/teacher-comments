@@ -17,6 +17,18 @@
 
 ## 2026-05-10
 
+### D-2026-05-10-17 Implementation Phase 9 — vision tier (image extractor + multimodal LLM)
+- **Decision**: Add image processing via the vision_cheap tier:
+  (a) `OpenRouterClient.chat` extended with optional `image_bytes` + `image_mime` kwargs. Multimodal `messages` payload constructed via `_build_messages`: text-only → simple `{role:user, content:str}`; with image → `content` is a parts list (text part + `image_url` data URL with base64-inline image). Stays under chat completions API (no streaming or audio yet).
+  (b) `LLMService.call` exposes the same kwargs end-to-end. Text prompt is still anonymised + boundary-checked + restored; image bytes forwarded as-is — anonymizer cannot redact pixels.
+  (c) `ImageExtractor` (jpeg/png/webp; 5MB pre-encode warning cap). Returns `text=""` because the bytes go to the vision tier directly, not as transcribed text. `has_images=True` set so future routing logic stays consistent.
+  (d) `ProcessingPipeline._route_tier` switches from "text-only or fail" to "text → summary_cheap, image → vision_cheap, else UnsupportedFormat". Vision branch builds a vision-specific prompt with **explicit instruction not to transcribe PII** (handwritten names / printed IDs in images can leak through if the model OCRs; this prompt is the V1 mitigation, paired with the existing boundary check on the response text).
+  (e) `Settings.llm_tier_vision_cheap` already plumbed (D9 default = Flash Lite). No new env vars; cost table now applies to vision-tier calls automatically.
+  Tests: 4 new (image routes to vision tier, OpenRouter receives image_bytes + correct mime, multimodal message builder generates data URL parts, oversize warning). Updated 3 existing tests to accept the new kwargs in their FakeOpenRouter stubs and to use a true non-routable MIME (`video/mp4`) for the unsupported-format test (image/png is now supported). Full suite 111 passed.
+- **Rationale**: Inline-base64 data URLs were chosen over pre-uploading to a CDN because (1) V1 has no image-host infrastructure, (2) flask-flask payload (~5MB pre-encode → ~7MB encoded) is well within OpenRouter's request limits, (3) it leaves no third-party trace of student images outside the LLM provider chain. The PII-restriction prompt is intentionally just a soft instruction — there's no provable guarantee the model obeys; this is the same threat profile as the document tier where the LLM could in theory reproduce the input text verbatim. The boundary check on the response text remains the load-bearing tripwire.
+- **Files**: `backend/app/adapters/openrouter_client.py` (multimodal messages + base64 import), `backend/app/services/llm_service.py` (image kwargs through chokepoint), `backend/app/adapters/document_extractors/image.py`, `backend/app/adapters/document_extractors/__init__.py` (registry order), `backend/app/services/processing_pipeline.py` (vision routing + vision prompt), `backend/tests/integration/test_vision_pipeline.py`, `backend/tests/integration/test_llm_service.py` + `test_processing_pipeline.py` (FakeOpenRouter signature update)
+- **Commit**: _fill after commit_
+
 ### D-2026-05-10-16 Implementation Phase 8 — onboarding wizard (D17 attestation + D14 mapping)
 - **Decision**: Complete the post-OAuth onboarding flow per ARCH-001 §3.1 / PRD §3.2 Flow A:
   (a) Backend: `AuthService.attest(teacher_id, version)` updates `teacher.consent_attestation_at` + `consent_attestation_version`, writes `attestation_signed` system_event for legal-grade audit. New endpoint `POST /onboarding/attest {version}`. Idempotent — same version may be re-signed.

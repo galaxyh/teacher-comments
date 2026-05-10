@@ -49,6 +49,8 @@ class FakeOpenRouter:
         max_output_tokens: int = 1024,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
     ) -> ChatResult:
         self.calls.append(_Call(model_id=model_id, prompt=prompt))
 

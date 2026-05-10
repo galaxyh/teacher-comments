@@ -88,6 +88,8 @@ class LLMService:
         teacher_id: str,
         prompt: str,
         purpose: str,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
         max_output_tokens: int = 1024,
         retry: int = 3,
     ) -> LLMCallResult:
@@ -95,6 +97,12 @@ class LLMService:
 
         `purpose` is a free-text label written to llm_call_audit.purpose (e.g.,
         'docx_summary', 'evaluation_draft'). It distinguishes call sites in audits.
+
+        For vision tiers (`vision_cheap`), pass `image_bytes` + `image_mime`. The
+        text prompt is still anonymised + boundary-checked; the image is forwarded
+        as-is. PII visible in the image (handwriting, photos) is OUTSIDE this layer's
+        protection — caller (ProcessingPipeline) MUST emit prompt instructions
+        forbidding PII transcription, and the response is still PII-restored.
         """
         model_id = self._model_for_tier(tier)
         started_at = time.monotonic()
@@ -128,6 +136,8 @@ class LLMService:
         chat_result = await self._call_with_retry(
             model_id=model_id,
             anonymized_prompt=anon_result.anonymized_text,
+            image_bytes=image_bytes,
+            image_mime=image_mime,
             max_output_tokens=max_output_tokens,
             retry=retry,
         )
@@ -167,6 +177,8 @@ class LLMService:
         anonymized_prompt: str,
         max_output_tokens: int,
         retry: int,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
     ) -> ChatResult:
         """Exponential backoff: 2s, 6s, 18s. Re-raises on retry exhaustion."""
         last_exc: Exception | None = None
@@ -175,6 +187,8 @@ class LLMService:
                 return await self._openrouter.chat(
                     model_id=model_id,
                     prompt=anonymized_prompt,
+                    image_bytes=image_bytes,
+                    image_mime=image_mime,
                     max_output_tokens=max_output_tokens,
                 )
             except (LLMRateLimitError, LLMTimeoutError) as exc:

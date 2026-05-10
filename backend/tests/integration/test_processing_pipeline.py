@@ -43,6 +43,8 @@ class FakeOpenRouter:
         max_output_tokens: int = 1024,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
     ) -> ChatResult:
         self.last_prompt = prompt
         return ChatResult(
@@ -154,7 +156,11 @@ async def test_pipeline_processes_docx_end_to_end(pipeline_harness) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_unsupported_format_raises_terminal(pipeline_harness) -> None:
-    """A drive_file row with a mime_type we don't route should raise UnsupportedFormatError."""
+    """A drive_file row with a mime_type we don't route should raise UnsupportedFormatError.
+
+    Note: as of Phase 9, image/* is supported via vision tier; we use a truly
+    unsupported MIME (audio is Phase 10, video is out of scope V1).
+    """
     from app.core.exceptions import UnsupportedFormatError
     from app.models import DriveFile
 
@@ -169,8 +175,8 @@ async def test_pipeline_unsupported_format_raises_terminal(pipeline_harness) -> 
             student_pseudo_id="王小明",
             category="work",
             drive_path="...",
-            filename="image.png",
-            mime_type="image/png",
+            filename="movie.mp4",
+            mime_type="video/mp4",
             drive_modified_at="2026-05-01T00:00:00Z",
         )
         session.add(f)

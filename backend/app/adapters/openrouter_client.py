@@ -18,6 +18,7 @@ Lessons-learned applied:
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
 from dataclasses import dataclass
@@ -51,21 +52,30 @@ class OpenRouterClient:
         *,
         model_id: str,
         prompt: str,
+        image_bytes: bytes | None = None,
+        image_mime: str | None = None,
         max_output_tokens: int = 1024,
         temperature: float = 0.7,
         timeout: float = 60.0,
     ) -> ChatResult:
-        """Single-turn chat completion. Raises classified errors on failure."""
+        """Single-turn chat completion. Raises classified errors on failure.
+
+        When `image_bytes` is provided, sends a multimodal message: text prompt +
+        an inline-base64 `image_url` part. The model_id MUST be a vision-capable
+        model (e.g. `google/gemini-2.5-flash-lite`).
+        """
         if not model_id:
             # Per architecture.md "Declared Config Must Be Plumbed" — empty model_id
             # means tier→model resolution returned an empty default, which is a config
             # bug. Catch at the boundary so it's clear where to look.
             raise ValueError("model_id is empty — Settings.llm_tier_* misconfigured")
 
+        messages = self._build_messages(prompt=prompt, image_bytes=image_bytes, image_mime=image_mime)
+
         try:
             resp = await self._client.chat.completions.create(
                 model=model_id,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 max_tokens=max_output_tokens,
                 temperature=temperature,
                 timeout=timeout,
@@ -102,6 +112,31 @@ class OpenRouterClient:
             output_tokens=usage.completion_tokens if usage else 0,
             cost_usd=cost,
         )
+
+    @staticmethod
+    def _build_messages(
+        *, prompt: str, image_bytes: bytes | None, image_mime: str | None
+    ) -> list[dict]:
+        """Construct OpenAI/OpenRouter chat-completions message format.
+
+        Plain text → simple `{role: user, content: "..."}`. With an image,
+        `content` becomes a list of parts (text + image_url with data URL).
+        """
+        if image_bytes is None:
+            return [{"role": "user", "content": prompt}]
+
+        mime = image_mime or "image/jpeg"
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        data_url = f"data:{mime};base64,{b64}"
+        return [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }
+        ]
 
     @staticmethod
     def _classify_status(exc: Exception) -> int | None:

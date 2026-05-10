@@ -4,12 +4,11 @@ Per DESIGN-001 §4.5: pure (no DB writes). Caller (BatchWorker in Phase 5,
 files router in Phase 4b) persists the resulting `ProcessingResult` into
 `processed_artifact`.
 
-Tier routing for Phase 4b:
-- learning / work × text formats (.docx, .txt) → `summary_cheap`
-- interaction × text → `summary_cheap` (audio routing is Phase 5+)
+Tier routing:
+- text formats (.docx, .xlsx, .pptx, .pdf, .txt) → `summary_cheap`
+- image formats (.jpg, .png, .webp) → `vision_cheap` (Phase 9)
+- audio formats → `audio_standard` (Phase 10)
 - everything else → UnsupportedFormatError (terminal)
-
-Vision and audio tiers extend this in later phases.
 """
 
 from __future__ import annotations
@@ -53,6 +52,7 @@ TEXT_SUMMARY_MIMES: frozenset[str] = frozenset({
     "text/plain",
     "text/markdown",
 })
+VISION_MIMES: frozenset[str] = frozenset({"image/jpeg", "image/png", "image/webp"})
 
 
 class ProcessingPipeline:
@@ -87,17 +87,25 @@ class ProcessingPipeline:
             file_bytes=file_bytes, filename=drive_file.filename
         )
 
-        # 4. Tier routing — Phase 4b only handles text. Vision / audio are TODOs.
+        # 4. Tier routing
         tier = self._route_tier(drive_file=drive_file)
 
-        # 5. Build prompt + summarise via LLMService chokepoint
-        prompt = _build_summary_prompt(drive_file=drive_file, extracted=extracted)
+        # 5. Build prompt + call LLMService chokepoint (image bytes go directly;
+        #    text prompt is anonymised + boundary-checked + restored as usual).
+        is_vision = tier == TaskTier.VISION_CHEAP
+        prompt = (
+            _build_vision_prompt(drive_file=drive_file)
+            if is_vision
+            else _build_summary_prompt(drive_file=drive_file, extracted=extracted)
+        )
         result = await self._llm.call(
             tier=tier,
             teacher_id=teacher_id,
             prompt=prompt,
             purpose=f"{drive_file.category}_summary",
-            max_output_tokens=600,
+            image_bytes=file_bytes if is_vision else None,
+            image_mime=drive_file.mime_type if is_vision else None,
+            max_output_tokens=800 if is_vision else 600,
         )
 
         return ProcessingResult(
@@ -114,20 +122,59 @@ class ProcessingPipeline:
 
     @staticmethod
     def _route_tier(*, drive_file: DriveFile) -> TaskTier:
-        """Phase 4b: text-only. Vision/audio routing in later phases."""
-        if drive_file.mime_type not in TEXT_SUMMARY_MIMES and not _filename_is_text(
-            drive_file.filename
-        ):
-            raise UnsupportedFormatError(
-                f"Phase 4b only routes text MIME types; got {drive_file.mime_type!r}",
-                context={"filename": drive_file.filename},
-            )
-        return TaskTier.SUMMARY_CHEAP
+        """Route by MIME type. Audio routing arrives in Phase 10."""
+        mt = drive_file.mime_type
+        fname = drive_file.filename
+        if mt in TEXT_SUMMARY_MIMES or _filename_is_text(fname):
+            return TaskTier.SUMMARY_CHEAP
+        if mt in VISION_MIMES or _filename_is_image(fname):
+            return TaskTier.VISION_CHEAP
+        raise UnsupportedFormatError(
+            f"No tier routing for mime_type={mt!r} (filename={fname!r})",
+            context={"filename": fname, "mime_type": mt},
+        )
 
 
 def _filename_is_text(filename: str) -> bool:
     return filename.lower().endswith(
         (".docx", ".xlsx", ".pptx", ".pdf", ".txt", ".md", ".markdown")
+    )
+
+
+def _filename_is_image(filename: str) -> bool:
+    return filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+
+
+def _build_vision_prompt(*, drive_file: DriveFile) -> str:
+    """Vision-tier prompt. The PII restriction is load-bearing because images
+    can carry text the LLM might transcribe — anonymizer can't redact pixels.
+    """
+    category_zh = {
+        "learning": "學習紀錄",
+        "interaction": "教師與學生互動紀錄",
+        "work": "作品成果",
+    }.get(drive_file.category, drive_file.category)
+
+    return (
+        "你是教師助手，請看圖並整理為 markdown 摘要。\n"
+        "\n"
+        "**重要**：圖中可能包含學生姓名、學號或其他個資。請**不要**逐字轉抄這些內容；\n"
+        "改用「學生姓名」、「學號」等代詞描述存在但不複述具體值。\n"
+        "\n"
+        "- 類別：{category}\n"
+        "- 學期：{semester}\n"
+        "- 學生（已匿名化）：{pseudo}\n"
+        "- 檔名：{filename}\n"
+        "\n"
+        "請輸出三段：\n"
+        "1. **主題**（1-2 句）\n"
+        "2. **觀察重點**（3-5 個 bullet）\n"
+        "3. **教師值得關注的細節**（簡短說明）"
+    ).format(
+        category=category_zh,
+        semester=drive_file.semester_label,
+        pseudo=drive_file.student_pseudo_id,
+        filename=drive_file.filename,
     )
 
 

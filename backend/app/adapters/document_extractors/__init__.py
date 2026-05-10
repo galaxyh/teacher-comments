@@ -61,6 +61,7 @@ class DocumentExtractorRegistry:
 def build_default_registry() -> DocumentExtractorRegistry:
     """Default registry for V1. Order: most-specific MIME → broad suffix-based last."""
     from app.adapters.document_extractors.docx import DocxExtractor
+    from app.adapters.document_extractors.image import ImageExtractor
     from app.adapters.document_extractors.pdf import PdfExtractor
     from app.adapters.document_extractors.pptx import PptxExtractor
     from app.adapters.document_extractors.text import PlainTextExtractor
@@ -72,6 +73,7 @@ def build_default_registry() -> DocumentExtractorRegistry:
             XlsxExtractor(),
             PptxExtractor(),
             PdfExtractor(),
+            ImageExtractor(),
             PlainTextExtractor(),  # last — broad-by-suffix, low-priority
         ]
     )
