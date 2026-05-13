@@ -21,7 +21,7 @@ full architectural rationale with options-evaluated-and-rejected in
 - `docs/BDD-001-behavior-scenarios.md` — 58 Gherkin scenarios for F-1~F-10
 - `docs/TDD-001-testing-strategy.md` — test pyramid, mocks, Playwright E2E, CI
 
-**Implementation phase**: walking skeleton complete (Phases 1-12 + hardening). 134 tests passing (129 backend pytest + 5 frontend vitest). Backend: 27 endpoints across 9 routers; 7 document extractors (docx/xlsx/pptx/pdf/image/audio/text); 3 alembic migrations; full LLM chokepoint with PII anonymise/restore round-trip. Frontend: 7 Next.js routes (`/`, `/onboarding`, `/batch`, `/evaluation/new`, `/pii`, `/settings`, plus Next-internal). DECISIONS.md tracks 21 entries (D-2026-05-10-01 through D-2026-05-10-21).
+**Implementation phase**: walking skeleton complete (Phases 1-12 + hardening + 2026-05-13 UAT fixes). 134 tests passing (129 backend pytest + 5 frontend vitest). Backend: 27 endpoints across 9 routers; 7 document extractors (docx/xlsx/pptx/pdf/image/audio/text); 3 alembic migrations; full LLM chokepoint with PII anonymise/restore round-trip. Frontend: 7 Next.js routes (`/`, `/onboarding`, `/batch`, `/evaluation/new`, `/pii`, `/settings`, plus Next-internal). DECISIONS.md tracks 23 entries (D-2026-05-10-01 through D-2026-05-10-23).
 
 **For phase-by-phase status + V1.x remaining work**, see [`docs/work-plan.md`](docs/work-plan.md).
 

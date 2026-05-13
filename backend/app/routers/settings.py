@@ -21,7 +21,7 @@ def get_settings_service(
     return SettingsService(settings=settings, db_write_queue=queue)
 
 
-@router.get("/settings", response_model=SettingsResponse)
+@router.get("/settings/me", response_model=SettingsResponse)
 async def view(
     teacher: Teacher = Depends(get_current_teacher),
     svc: SettingsService = Depends(get_settings_service),

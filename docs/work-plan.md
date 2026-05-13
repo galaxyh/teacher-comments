@@ -105,8 +105,12 @@ Currently one page handles all 4 steps (attest → pick root → mapping → don
 ### Done
 - [x] Backend ruff clean (89 issues → 0 with curated narrow ignores)
 - [x] Frontend vitest layer + first 5 tests covering API client error mapping
-- [x] DECISIONS.md governance pattern (21 entries, all backfilled)
+- [x] DECISIONS.md governance pattern (23 entries, all backfilled)
 - [x] CI workflow (`.github/workflows/test.yml`) with auto-skip guards
+- [x] **Manual UAT pass (2026-05-13)** — fixed 3 bugs surfaced by live testing:
+    - OAuth callback `Location: /` landed on backend (404) — `PUBLIC_BASE_URL` must be **frontend** origin; clarified in `.env.example` + ARCH-001 env table
+    - Onboarding drive root picker only listed 1 level — implemented lazy-loaded `TreeRow` per UIUX-001 §454 ([D-2026-05-10-22](adr/DECISIONS.md))
+    - `POST /batch/start` 404 — `next.config.mjs` rewrites missed `/batch/*`, `/pii/*`, `/settings/*`; backend `GET /settings` renamed to `/settings/me` to resolve frontend page collision ([D-2026-05-10-23](adr/DECISIONS.md))
 
 ### Remaining
 - [ ] **`scripts/start-test-stack.sh` + `scripts/wait-for-stack.sh`** — referenced by the CI `e2e` job; currently absent → e2e job skips. Need a mock LLM (env-driven) + mock Drive (env-driven) wiring before Playwright is meaningful.

@@ -23,9 +23,45 @@ export default function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Step 2 — Drive root picker
+  // Step 2 — Drive root picker (tree, lazy-loaded)
   const [candidates, setCandidates] = useState<DriveTreeNode[]>([]);
   const [pickedRootId, setPickedRootId] = useState<string | null>(null);
+  const [childrenByFolder, setChildrenByFolder] = useState<Record<string, DriveTreeNode[]>>({});
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
+
+  async function toggleExpand(folderId: string) {
+    setError(null);
+    const isExpanded = expandedFolders.has(folderId);
+    if (isExpanded) {
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        next.delete(folderId);
+        return next;
+      });
+      return;
+    }
+    setExpandedFolders((prev) => new Set(prev).add(folderId));
+    if (childrenByFolder[folderId]) return; // cached
+    setLoadingFolders((prev) => new Set(prev).add(folderId));
+    try {
+      const items = await api.listDriveChildren(folderId);
+      setChildrenByFolder((prev) => ({ ...prev, [folderId]: items }));
+    } catch (err) {
+      setError(formatError(err));
+      setExpandedFolders((prev) => {
+        const next = new Set(prev);
+        next.delete(folderId);
+        return next;
+      });
+    } finally {
+      setLoadingFolders((prev) => {
+        const next = new Set(prev);
+        next.delete(folderId);
+        return next;
+      });
+    }
+  }
 
   // Step 3 — folder mapping
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -141,6 +177,10 @@ export default function OnboardingPage() {
           setPicked={setPickedRootId}
           busy={busy}
           onSubmit={submitDriveRoot}
+          childrenByFolder={childrenByFolder}
+          expandedFolders={expandedFolders}
+          loadingFolders={loadingFolders}
+          onToggleExpand={toggleExpand}
         />
       )}
 
@@ -215,30 +255,40 @@ function PickRootStep({
   setPicked,
   busy,
   onSubmit,
+  childrenByFolder,
+  expandedFolders,
+  loadingFolders,
+  onToggleExpand,
 }: {
   candidates: DriveTreeNode[];
   picked: string | null;
   setPicked: (id: string) => void;
   busy: boolean;
   onSubmit: () => void;
+  childrenByFolder: Record<string, DriveTreeNode[]>;
+  expandedFolders: Set<string>;
+  loadingFolders: Set<string>;
+  onToggleExpand: (folderId: string) => void;
 }) {
   return (
     <section className="space-y-3 rounded-md border border-stone-200 bg-white p-4">
       <h2 className="font-semibold">選擇教學資料根目錄</h2>
       <p className="text-sm text-ink-muted">
-        系統會掃描此資料夾下的「學期 / 學生 / 類別」3 層結構。
+        系統會掃描此資料夾下的「學期 / 學生 / 類別」3 層結構。可展開子資料夾並選擇任一層作為根目錄。
       </p>
       <ul className="divide-y divide-stone-100">
         {candidates.map((c) => (
-          <li key={c.drive_file_id} className="flex items-center gap-2 py-2 text-sm">
-            <input
-              type="radio"
-              name="root"
-              checked={picked === c.drive_file_id}
-              onChange={() => setPicked(c.drive_file_id)}
-            />
-            <label>{c.name}</label>
-          </li>
+          <TreeRow
+            key={c.drive_file_id}
+            node={c}
+            depth={0}
+            picked={picked}
+            setPicked={setPicked}
+            childrenByFolder={childrenByFolder}
+            expandedFolders={expandedFolders}
+            loadingFolders={loadingFolders}
+            onToggleExpand={onToggleExpand}
+          />
         ))}
         {candidates.length === 0 && (
           <li className="py-2 text-sm text-ink-muted">（尚未載入或 Drive 無頂層資料夾）</li>
@@ -253,6 +303,85 @@ function PickRootStep({
         {busy ? '掃描中…' : '繼續'}
       </button>
     </section>
+  );
+}
+
+function TreeRow({
+  node,
+  depth,
+  picked,
+  setPicked,
+  childrenByFolder,
+  expandedFolders,
+  loadingFolders,
+  onToggleExpand,
+}: {
+  node: DriveTreeNode;
+  depth: number;
+  picked: string | null;
+  setPicked: (id: string) => void;
+  childrenByFolder: Record<string, DriveTreeNode[]>;
+  expandedFolders: Set<string>;
+  loadingFolders: Set<string>;
+  onToggleExpand: (folderId: string) => void;
+}) {
+  const expanded = expandedFolders.has(node.drive_file_id);
+  const loading = loadingFolders.has(node.drive_file_id);
+  const children = childrenByFolder[node.drive_file_id];
+  return (
+    <>
+      <li
+        className="flex items-center gap-2 py-2 text-sm"
+        style={{ paddingLeft: `${depth * 1.25}rem` }}
+      >
+        {node.is_folder ? (
+          <button
+            type="button"
+            onClick={() => onToggleExpand(node.drive_file_id)}
+            className="w-5 select-none text-ink-muted hover:text-ink"
+            aria-label={expanded ? '收合' : '展開'}
+          >
+            {loading ? '…' : expanded ? '▼' : '▶'}
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
+        <input
+          type="radio"
+          name="root"
+          checked={picked === node.drive_file_id}
+          onChange={() => setPicked(node.drive_file_id)}
+        />
+        <label
+          className="cursor-pointer"
+          onClick={() => setPicked(node.drive_file_id)}
+        >
+          {node.name}
+        </label>
+      </li>
+      {expanded && children && children.length === 0 && (
+        <li
+          className="py-1 text-xs text-ink-muted"
+          style={{ paddingLeft: `${(depth + 1) * 1.25 + 1.5}rem` }}
+        >
+          （此資料夾沒有子資料夾）
+        </li>
+      )}
+      {expanded &&
+        children?.map((child) => (
+          <TreeRow
+            key={child.drive_file_id}
+            node={child}
+            depth={depth + 1}
+            picked={picked}
+            setPicked={setPicked}
+            childrenByFolder={childrenByFolder}
+            expandedFolders={expandedFolders}
+            loadingFolders={loadingFolders}
+            onToggleExpand={onToggleExpand}
+          />
+        ))}
+    </>
   );
 }
 

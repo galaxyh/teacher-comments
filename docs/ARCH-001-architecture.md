@@ -783,7 +783,7 @@ Fly secrets supply the same env vars; volume mount preserves SQLite across deplo
 | `OPENROUTER_API_KEY` | OpenRouter API access | `sk-or-...` | Yes |
 | `PII_ENCRYPTION_KEY` | AES-256 key for `pii_mapping.original_value_encrypted` | base64 32 bytes | Yes |
 | `OAUTH_TOKEN_ENCRYPTION_KEY` | AES-256 for refresh token | base64 32 bytes | Yes |
-| `PUBLIC_BASE_URL` | OAuth callback redirect | `https://teacher.example.com` | Yes |
+| `PUBLIC_BASE_URL` | **Frontend (user-facing) origin** — used by backend to construct OAuth callback URI `{PUBLIC_BASE_URL}/auth/callback` and the post-login default redirect target. Must point at the origin the browser actually sees, NOT the backend port. Dev: `http://localhost:3000` (Next.js dev server proxies `/auth/*` → :8000). Prod: `https://teacher.example.com`. | `https://teacher.example.com` | Yes |
 | `LLM_TIER_SUMMARY_CHEAP` | Override default model for tier | `google/gemini-2.5-flash-lite` | No |
 | `LLM_TIER_VISION_CHEAP` | Same | (same default) | No |
 | `LLM_TIER_AUDIO_STANDARD` | Same | (same default) | No |

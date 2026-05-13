@@ -130,9 +130,18 @@ state TEXT NOT NULL CHECK (state IN
 
 **No PRD change**.
 
-### 2.3 OAQ-3: Frontend served by FastAPI or separate Next.js server? — **DECISION: single container, FastAPI mounts Next.js standalone build**
+### 2.3 OAQ-3: Frontend served by FastAPI or separate Next.js server? — **DECISION: single container, two processes behind one reverse-proxy**
 
-**Decision**: One Docker container, FastAPI serves `/api/*` and falls back to Next.js standalone server for everything else (proxied internally).
+> **Status (2026-05-13)**: Original §2.3 below specified a single `/api/*` prefix.
+> Implementation (Phase 6, [D-2026-05-10-12](adr/DECISIONS.md)) deviated to **per-feature
+> prefixes** (`/auth/*`, `/drive/*`, `/eval/*`, `/batch/*`, `/pii/*`, `/onboarding/*`,
+> `/settings/*`, `/file/*`, plus bare `/me`, `/healthz`, `/readyz`). [D-2026-05-10-23](adr/DECISIONS.md)
+> ratifies this deviation as the official design after weighing refactor cost; future
+> backend routers MUST add their prefix to `frontend/next.config.mjs` rewrites in the
+> same commit. Caddyfile prod config routes the same prefix list to `:8000`, everything
+> else (including bare frontend pages `/onboarding`, `/batch`, `/pii`, `/settings`) to `:3000`.
+
+**Decision**: One Docker container, FastAPI serves a fixed list of per-feature prefixes; Next.js standalone server handles everything else.
 
 **Layout**:
 ```
@@ -146,8 +155,19 @@ state TEXT NOT NULL CHECK (state IN
 # entrypoint.sh
 node frontend/.next/standalone/server.js &  # 3000
 uvicorn backend.app.main:app --port 8000 &  # 8000
-caddy run --config /etc/caddy/Caddyfile     # 443 → routes /api → 8000, * → 3000
+caddy run --config /etc/caddy/Caddyfile     # 443 → routes backend prefixes → 8000, * → 3000
 ```
+
+**Caddyfile sketch** (prod):
+```caddy
+teacher.example.com {
+  @backend path /auth/* /drive/* /onboarding/* /file/* /eval/* /batch/* /pii/* /settings/* /me /healthz /readyz
+  reverse_proxy @backend localhost:8000
+  reverse_proxy localhost:3000  # default: frontend
+}
+```
+
+**Dev equivalent**: `frontend/next.config.mjs` rewrites the same prefix list to `http://localhost:8000`; the browser sees same-origin (`:3000`) so cookies attach without CORS.
 
 **Why bundled**: avoids CORS, simplifies session cookie scope (Axis 1 single-tenant).
 

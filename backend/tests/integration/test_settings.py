@@ -35,7 +35,7 @@ def authed_client(isolated_env):
 
 
 def test_settings_returns_defaults_for_fresh_teacher(authed_client: TestClient) -> None:
-    r = authed_client.get("/settings")
+    r = authed_client.get("/settings/me")
     assert r.status_code == 200
     body = r.json()
     cfg = body["llm_tier_config"]
@@ -52,7 +52,7 @@ def test_set_tier_override_persists(authed_client: TestClient) -> None:
         json={"overrides": {"evaluation_quality": "google/gemini-2.5-pro"}},
     )
     assert r.status_code == 200
-    after = authed_client.get("/settings").json()
+    after = authed_client.get("/settings/me").json()
     assert after["llm_tier_config"]["evaluation_quality"] == "google/gemini-2.5-pro"
     # Other tiers still on the default
     assert after["llm_tier_config"]["summary_cheap"] == "google/gemini-2.5-flash-lite"
@@ -67,7 +67,7 @@ def test_clear_override_with_empty_string(authed_client: TestClient) -> None:
         "/settings/llm-tier", json={"overrides": {"evaluation_quality": ""}}
     )
     assert r.status_code == 200
-    after = authed_client.get("/settings").json()
+    after = authed_client.get("/settings/me").json()
     assert after["llm_tier_config"]["evaluation_quality"] == "google/gemini-2.5-flash-lite"
 
 
@@ -81,7 +81,7 @@ def test_unknown_tier_returns_400(authed_client: TestClient) -> None:
 
 def test_anonymous_returns_401(authed_client: TestClient) -> None:
     authed_client.cookies.clear()
-    r = authed_client.get("/settings")
+    r = authed_client.get("/settings/me")
     assert r.status_code == 401
 
 
@@ -111,5 +111,5 @@ def test_monthly_cost_aggregates_audit_rows(authed_client: TestClient) -> None:
         ])
     authed_client.portal.call(queue.submit, seed)
 
-    body = authed_client.get("/settings").json()
+    body = authed_client.get("/settings/me").json()
     assert body["monthly_cost_usd"] == pytest.approx(0.003, abs=1e-6)

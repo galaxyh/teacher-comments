@@ -239,6 +239,13 @@ export const api = {
     return body.items;
   },
 
+  async listDriveChildren(folderId: string): Promise<DriveTreeNode[]> {
+    const body = await unwrap<{ items: DriveTreeNode[] }>(
+      await baseFetch(`/drive/folder/${encodeURIComponent(folderId)}/children`),
+    );
+    return body.items;
+  },
+
   async setDriveRoot(folderId: string): Promise<void> {
     await baseFetch('/onboarding/drive-root', {
       method: 'POST',
@@ -288,7 +295,7 @@ export const api = {
   // ── Settings ───────────────────────────────────────────────────
 
   async getSettings(): Promise<SettingsResponse> {
-    return unwrap<SettingsResponse>(await baseFetch('/settings'));
+    return unwrap<SettingsResponse>(await baseFetch('/settings/me'));
   },
 
   async updateTierConfig(overrides: Record<string, string>): Promise<void> {
